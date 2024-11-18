@@ -1,6 +1,6 @@
 # ProbeST: a custom probe design pipeline for spatial transcriptomics of non-model organisms
 
-ProbeST allows to custom design binding probes for any gene of any species to be used in probe-based spatial transcriptomics Visium protocols. To date, the Visium platform provides probes for the human and mouse transcriptome only. ProbeST offers more flexibility to the probe-based chemistry by enabling the capture of both eukaryotic and prokaryotic transcript information.
+ProbeST allows to custom design binding probes for any gene of any species to be used in probe-based spatial transcriptomics protocols. To date, the Visium platform provides probes for the human and mouse transcriptomes only. ProbeST offers more flexibility to the probe-based chemistry by enabling the capture of both eukaryotic and prokaryotic transcript information.
 
 ProbeST follows the [10X Genomics recommendations](https://www.10xgenomics.com/support/spatial-gene-expression-ffpe/documentation/workflows/ffpe-v-1/steps/experimental-design-and-planning/custom-probe-design-for-visium-spatial-gene-expression-and-chromium-single-cell-gene-expression-flex) for binding probes with the Visium platform.
 
@@ -79,6 +79,8 @@ conda install graphviz
 snakemake --dag selected_probes.txt | dot -Tsvg > dag.svg
 ```
 
+## Optional: Cross-hybridization
+In the case of genomes with very poor annotation, this pipeline can be run in addition to the main ProbeST pipeline. It checks for contamination from the environment, due to the likelihood that poorly annotated genomes contain sequences not belonging to the species in question, but rather to environmental, viral or prokaryotic DNA. Cross-hybridisation will remove probes that have been designed from these external genomic sequences, and generate final probes with higher confidence. 
 
 ## For further information on Snakemake
 
