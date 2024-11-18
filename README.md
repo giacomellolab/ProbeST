@@ -35,25 +35,20 @@ snakemake --help
 snakemake --version
 ```
 
-4. Install ProbeST via pip
-   
-```
-pip install
-```
 
-5. Install primer3
+4. Install primer3
 
 ```
 conda install -c bioconda primer3
 ```
 
-6. Install blast
+5. Install blast
 
 ```
 mamba install blast
 ```
 
-7. Make a dry run of the workflow
+6. Make a dry run of the workflow
 
 ```
 snakemake -c 1 -s Snakefile_name --use-conda -np
@@ -62,13 +57,13 @@ snakemake -c 1 -s Snakefile_name --use-conda -np
 The comment "missing output files" is normal. 
 
 
-8. Run ProbeST workflow
+7. Run ProbeST workflow
 
 ```
 snakemake -c 1 --use-conda -s Snakefile_name
 ```
 
-9. If you want to delete outputs before running it again
+8. If you want to delete outputs before running it again
 
 ```
 snakemake -s Snakefile_name --delete-all-output
