@@ -90,9 +90,9 @@ Snakemake general tutorial: https://snakemake.readthedocs.io/en/stable/tutorial/
 
 
 
-# Probe design 10X Genomics recommendations
-ProbeST is designed to custom probes for the probe-based Visium Spatial Gene Expression FFPE and Visium CytAssist Spatial Gene Expression assays.
-Therefore, it follows the current probe requirements set by 10X Genomics to optimise probe performance and specificity.
+# Probe design recommendations
+ProbeST is aimed at designing custom probes for the Visium Spatial Gene Expression FFPE and Visium CytAssist Spatial Gene Expression assays.
+Therefore, it follows the [current probe requirements](https://www.10xgenomics.com/support/spatial-gene-expression-ffpe/documentation/workflows/ffpe-v-1/steps/experimental-design-and-planning/custom-probe-design-for-visium-spatial-gene-expression-and-chromium-single-cell-gene-expression-flex) to optimise probe performance and specificity.
 - A binding probe is 50 bp long, composed of two 25 bp sides: Left-Hand Side (LHS) and Right-Hand Side (RHS).
 - Probes should be designed for coding regions of mRNA, rather than untranslated regions.
 - GC content of each probe side should be between 44-72%.
