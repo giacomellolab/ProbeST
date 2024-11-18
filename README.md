@@ -1,1 +1,108 @@
-# ProbeST
+# ProbeST: a custom probe design pipeline for spatial transcriptomics of non-model organisms
+
+ProbeST allows to custom design binding probes for any gene of any species to be used in probe-based spatial transcriptomics Visium protocols. To date, the Visium platform provides probes for the human and mouse transcriptome only. ProbeST offers more flexibility to the probe-based chemistry by enabling the capture of both eukaryotic and prokaryotic transcript information.
+
+ProbeST follows the [10X Genomics recommendations](https://www.10xgenomics.com/support/spatial-gene-expression-ffpe/documentation/workflows/ffpe-v-1/steps/experimental-design-and-planning/custom-probe-design-for-visium-spatial-gene-expression-and-chromium-single-cell-gene-expression-flex) for binding probes with the Visium platform.
+
+ProbeST is built as a SnakeMake workflow, to be run from the terminal command line.
+**After ProbeST, the output probe sequences should be manually BLASTed on NCBI to confirm their specificity to the gene and to the species.**
+
+# Installation
+
+First create a new directory with the name of your choice for Snakemake
+
+```
+mkdir directory_name
+```
+
+1. Install mamba
+
+```
+conda install -n base -c conda-forge mamba
+```
+
+2. Install Snakemake into an isolated software environment
+
+```
+mamba create -c conda-forge -c bioconda -n snakemake snakemake
+```
+
+3. Activate your Snakemake environment
+
+```
+conda activate snakemake
+snakemake --help
+snakemake --version
+```
+
+4. Install ProbeST via pip
+   
+```
+pip install
+```
+
+5. Install primer3
+
+```
+conda install -c bioconda primer3
+```
+
+6. Install blast
+
+```
+mamba install blast
+```
+
+7. Make a dry run of the workflow
+
+```
+snakemake -c 1 -s Snakefile_name --use-conda -np
+```
+
+The comment "missing output files" is normal. 
+
+
+8. Run ProbeST workflow
+
+```
+snakemake -c 1 --use-conda -s Snakefile_name
+```
+
+9. If you want to delete outputs before running it again
+
+```
+snakemake -s Snakefile_name --delete-all-output
+```
+
+Check the log files in the logs/ folder, or the general Snakemake log file, for troubleshooting if an error occurs.
+
+
+To build a DAG display (the pipeline workflow with the different steps/rules). You need to run ProbeST before in order to have both the inputs and outputs.
+
+```
+conda install graphviz
+snakemake --dag selected_probes.txt | dot -Tsvg > dag.svg
+```
+
+
+## For further information on Snakemake
+
+Installation guide: https://snakemake.readthedocs.io/en/stable/getting_started/installation.html
+
+Snakemake general tutorial: https://snakemake.readthedocs.io/en/stable/tutorial/setup.html
+
+
+
+# Probe design 10X Genomics recommendations
+ProbeST is designed to custom probes for the probe-based Visium Spatial Gene Expression FFPE and Visium CytAssist Spatial Gene Expression assays.
+Therefore, it follows the current probe requirements set by 10X Genomics to optimise probe performance and specificity.
+- A binding probe is 50 bp long, composed of two 25 bp sides: Left-Hand Side (LHS) and Right-Hand Side (RHS).
+- Probes should be designed for coding regions of mRNA, rather than untranslated regions.
+- GC content of each probe side should be between 44-72%.
+- The 25th nucleotide (the 3' most nucleotide of the LHS) must be a T.
+- Homopolymer repeats should be avoided.
+- Off-target hybridisation should be checked for by BLASTing the probes against the reference transcriptome. This occurs if the probes bind to sequences other than the target mRNA sequence. Matches to off-target genes should have at least 5 mismatches in at least one of the LHS or RHS sides to prevent efficient hybridisation. Probes showing off-target hybridisation with less than or equal to 5 mismatches in either the LHS or the RHS should be removed.
+- 3 probe pairs per target mRNA is recommended. If the gene is not long enough for 3 pairs, or if there are not 3 pairs specific enough, fewer probe pairs can be designed.
+- There should not be any overlap between probe pair sequences to avoid competition between probes for the same binding site in the target mRNA.
+
+  
