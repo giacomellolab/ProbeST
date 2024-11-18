@@ -1,0 +1,14 @@
+name: probes_env
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.10.9
+  - primer3=2.6.1
+  - pandas
+  - numpy
+  - biopython
+  - openpyxl
+  - blast=2.15.0
+  - pyyaml
