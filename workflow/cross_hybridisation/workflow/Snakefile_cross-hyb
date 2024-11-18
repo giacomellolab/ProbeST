@@ -1,0 +1,153 @@
+configfile: "config.yaml"
+
+# Add your directory of blast_db_dir in the config.yaml file.
+
+# Access configuration variables
+BLAST_DB_DIR = config["blast_db_dir"]
+BLAST_DBS = config["blast_dbs"]
+
+# Overall rule to ensure all required outputs are produced
+rule all:
+    input:
+        "output_after_cross_check_combined.xlsx",
+        "output_after_cross_check_lhs.xlsx",
+        "output_after_cross_check_rhs.xlsx"
+
+# Rule to prepare probes list for part 2 from Ireens output
+rule prepare_probeslist:
+    input:
+        "selected_probes.txt"
+    output:
+        "probes.fasta"
+    log:
+        "logs/prepare_probeslist_for_part2.log"
+    conda:
+        "probes_env.yaml"
+    shell:
+        """
+        mkdir -p logs
+        python3 extract_probes_from_part1.py > {output} 2> {log}
+        """
+
+# Rule to merge LHS and RHS for each gene
+rule merge_LHS_RHS_for_each_gene:
+    input:
+        "probes.fasta"
+    output:
+        "merged_sequences.txt"
+    log:
+        "logs/merge_LHS_RHS_for_each_gene.log"
+    conda:
+        "probes_env.yaml"
+    shell:
+        """
+        mkdir -p logs
+        python3 script_merge_probes.py > {output} 2> {log}
+        """
+
+# Rule to trim from A-tail for cross-hybridization check
+rule trim_from_Atail_for_cross_hybridization_check:
+    input:
+        "merged_sequences.txt"
+    output:
+        "cleaned_sequences.fasta"
+    log:
+        "logs/trim_from_Atail_for_cross_hybridization_check.log"
+    conda:
+        "probes_env.yaml"
+    shell:
+        """
+        mkdir -p logs
+        python3 clean_from_Atail.py > {output} 2> {log}
+        """
+
+# Rule to trim from prefix for cross-hybridization check
+rule trim_from_prefix_for_cross_hybridization_check:
+    input:
+        "cleaned_sequences.fasta"
+    output:
+        "cleaned_sequences_from_prefix.fasta"
+    log:
+        "logs/trim_from_prefix_for_cross_hybridization_check.log"
+    conda:
+        "probes_env.yaml"
+    shell:
+        """
+        mkdir -p logs
+        python3 clean_prefix.py > {output} 2> {log}
+        """
+
+# Rule to download the BLAST database if not already downloaded
+#rule download_db_blast_for_cross_hybridization_check:
+#    output:
+#        "download_complete.txt"
+#    run:
+#        import os
+#        if not os.path.exists(output[0]):
+#            shell(f"""
+#                chmod +x download_db.sh
+#                ./download_db.sh {BLAST_DB_DIR}
+#                touch {output[0]}
+#            """)
+#        else:
+#             print("Database already downloaded, skipping download step.")
+
+rule blast_for_cross_hybridization_check:
+    input:
+        fasta="cleaned_sequences_from_prefix.fasta"
+    output:
+        expand("blast_cross_results/results_{db}_nt.txt", db=BLAST_DBS)
+    params:
+        db_dir=BLAST_DB_DIR,
+        dbs=BLAST_DBS,
+        evalue=1e-10,  # Increase e-value for lower sensitivity
+        word_size=15,  # Increase word size for lower sensitivity
+        reward=1,      # Default is 1, lower reward might decrease sensitivity
+        penalty=-1,    # Default is -2, increase penalty might decrease sensitivity
+        task="blastn-short"  # Task optimized for short sequences
+    log:
+        "logs/blast_for_cross_hybridization_check.log"
+    conda:
+        "probes_env.yaml"
+    shell:
+        """
+        mkdir -p logs blast_cross_results
+        for db in {params.dbs}; do
+            blastn -db {params.db_dir}/$db -query {input.fasta} -out blast_cross_results/results_${{db}}_nt.txt -outfmt 6 -evalue {params.evalue} -word_size {params.word_size} -reward {params.reward} -penalty {params.penalty} -task {params.task} 2>> {log}
+        done
+        """
+
+# Rule to filter hits from cross-hybridization check
+# If no hits, the input and output will look the same
+rule filter_hits:
+    input:
+        blast_outputs=expand("blast_cross_results/results_{db}_nt.txt", db=BLAST_DBS),
+        fasta="probes.fasta"
+    output:
+        "filtered_probes.fasta"
+    log:
+        "logs/filter_hits.log"
+    conda:
+        "probes_env.yaml"
+    shell:
+        """
+        mkdir -p logs
+        python filter_for_hits.py --blast_outputs {input.blast_outputs} --input_fasta {input.fasta} --output_fasta {output} 2> {log}
+        """
+
+rule generate_output_after_cross_check:
+    input:
+        fasta="filtered_probes.fasta"
+    output:
+        combined="output_after_cross_check_combined.xlsx",
+        lhs="output_after_cross_check_lhs.xlsx",
+        rhs="output_after_cross_check_rhs.xlsx"
+    log:
+        "logs/generate_output_after_cross_check.log"
+    conda:
+        "probes_env.yaml"
+    shell:
+        """
+        mkdir -p logs
+        python generate_output_with_hits.py --input_fasta {input.fasta} > {log} 2>&1
+        """
