@@ -1,0 +1,106 @@
+---
+title: "Load_data_SR"
+author: "Sofia Rouot"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output: html_document
+format:
+  html:
+    code-fold: true
+    toc: true
+    number-sections: true
+    theme: spacelab
+    embed-resources: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Data analysis of 2nd sequencing run 20240405
+
+## Load packages
+```{r Package Loading, message = FALSE, warning = FALSE}
+#install.packages("remotes")
+#remotes::install_github("ludvigla/semla")
+
+library(semla)
+packageVersion("semla")
+library(tibble)
+
+```
+
+## Load data
+```{r Load data, message = FALSE, warning = FALSE}
+
+#For local data, terminal path:
+data_root_directory <- "/Users/sofiarouot/Salmo_organoid/seq_run2_240408/data"
+
+#samples <- Sys.glob(paths = file.path(data_root_directory, 
+#                                     "filtered_feature_bc_matrix.h5"))
+samples <- list.files(data_root_directory, recursive = TRUE, full.names = TRUE, pattern = "filtered_feature_bc_matrix.h5")
+
+imgs <- list.files(data_root_directory, recursive = TRUE, full.names = TRUE, pattern = "tissue_hires_image.png")
+
+spotfiles <- list.files(data_root_directory, recursive = TRUE, full.names = TRUE, pattern = "tissue_positions.csv")
+
+json <- list.files(data_root_directory, recursive = TRUE, full.names = TRUE, pattern = "scalefactors_json.json")
+
+probeset <- list.files(data_root_directory, recursive = TRUE, full.names = TRUE, pattern = "probe_set.csv")
+
+
+#Assemble into a table
+infoTable <- tibble(samples, imgs, spotfiles, json, # Add required columns
+                    sample_id = c("BA", "BC")) # Add additional column
+
+#Package needed for data loading 
+#install.packages("hdf5r")
+library(hdf5r) 
+
+#Data loading
+se_organoid <- ReadVisiumData(infoTable)
+se_organoid
+
+#Access the spatial data (images, coordinates)
+spatial_data <- GetStaffli(se_organoid)
+
+#Load H&E images 
+se_organoid <- LoadImages(se_organoid)
+ImagePlot(se_organoid)
+
+```
+
+## First view of the data
+Can do subplot with violin, box, density plot, histogram
+```{r, message = FALSE, warning = FALSE}
+MapFeaturesSummary(se_organoid, features = "nFeature_Spatial", subplot_type = "violin", label_by = "sample_id")
+
+MapFeaturesSummary(se_organoid, features = "nCount_Spatial", subplot_type = "violin", label_by = "sample_id")
+
+```
+
+## Save data
+
+```{r, message = FALSE, warning = FALSE}
+saveRDS(se_organoid, file = "se_organoid_unfiltered.rds")
+```
+
+## To Read the data
+
+```{r, message = FALSE, warning = FALSE}
+se_organoid= readRDS (file = "se_organoid_unfiltered.rds")
+```
+
+
+## Session info
+
+<details>
+
+<summary>
+
+</summary>
+
+```{r}
+sessionInfo()
+Sys.Date()
+Sys.time()
+```

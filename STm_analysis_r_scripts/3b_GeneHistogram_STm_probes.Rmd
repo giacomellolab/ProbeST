@@ -1,0 +1,101 @@
+---
+title: "GeneHistogram"
+author: "Sofia Rouot"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output: html_document
+format:
+  html:
+    code-fold: true
+    toc: true
+    number-sections: true
+    theme: spacelab
+    embed-resources: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r Load libraries}
+  library(semla)
+  library(ggplot2)
+  library(openxlsx)
+  library(readxl)
+```
+
+## S.Tm gene abundance plot
+
+### Save gene abundances in excel file before
+```{r Save UMI counts excel file}
+STm_only_obj_bar_plot <- readRDS (file = "STm_genes_only_obj.rds")
+
+data_to_plot <- data.frame(STm_gene = rownames(STm_only_obj_bar_plot),
+                           nUMI = rowSums(STm_only_obj_bar_plot@assays$Spatial@layers$counts))
+
+write.xlsx(data_to_plot, file = "table_STm_genes_nUMI.xlsx", colNames=TRUE, rowNames=TRUE)
+```
+
+### For BA sample
+```{r Save BA sample UMI counts excel file}
+sample_name <- unique(STm_only_obj_bar_plot$sample_id)
+sample_name
+
+STm_only_obj_bar_plot.list <- lapply(sample_name, function(i){SubsetSTData(STm_only_obj_bar_plot, expression = (sample_id == i))})
+
+STm_only_obj_bar_plot_BA <- STm_only_obj_bar_plot.list[[1]]
+
+data_to_plot <- data.frame(STm_gene = rownames(STm_only_obj_bar_plot_BA),
+                           nUMI = rowSums(STm_only_obj_bar_plot_BA@assays$Spatial@layers$counts))
+
+write.xlsx(data_to_plot, file = "table_STm_genes_nUMI_BA.xlsx", colNames=TRUE, rowNames=TRUE)
+
+```
+
+#Fig.2.B. 
+```{r Histogram plot}
+
+data_bar_plot <- read_excel("table_STm_gene_names_nUMI_BA.xlsx")
+
+data_bar_plot$nUMI <- as.numeric(data_bar_plot$nUMI)
+
+data_bar_plot <- data_bar_plot[order(data_bar_plot$nUMI, decreasing = T), ]
+
+data_bar_plot$STm_gene_name <- factor(data_bar_plot$STm_gene_name, levels = data_bar_plot$STm_gene_name)
+
+p = ggplot(data_bar_plot, aes(y=nUMI, x=STm_gene_name)) +
+  geom_bar(stat = "identity", fill = "steelblue", position = "dodge") +
+  #scale_y_discrete(drop=FALSE) +
+  geom_text(aes(label=nUMI), vjust=-0.5, color="black", size=5) +
+  theme_minimal() +
+  labs(x="S.Tm gene", y="UMI count") +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 22),
+        axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.title.x = element_text(size = 20),
+        axis.title.y = element_text(size = 20),
+        axis.text.x = element_text(size = 11, angle = 0),
+        axis.text.y = element_text(size = 11),
+        legend.title = element_text(size = 20),
+        legend.text = element_text(size = 15))
+p
+
+ggsave(p, filename = "fig.2.B.seq2_STm_genes_abundances_not_normalised_BA_v2.pdf", width = 10, dpi = 400)
+```
+
+
+# Session info
+
+<details>
+
+<summary>
+
+</summary>
+
+```{r}
+sessionInfo()
+Sys.Date()
+Sys.time()
+```
+

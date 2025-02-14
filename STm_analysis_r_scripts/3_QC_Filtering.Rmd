@@ -1,0 +1,459 @@
+---
+title: "QC_Filtering"
+author: "Sofia Rouot"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output: html_document
+format:
+  html:
+    code-fold: true
+    toc: true
+    number-sections: true
+    theme: spacelab
+    embed-resources: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load packages
+
+```{r load packages, message = FALSE, warning = FALSE}
+  library(semla)
+```
+
+## Read the data
+
+```{r, message = FALSE, warning = FALSE}
+se_organoid_metadata_unfiltered = readRDS (file = "se_organoid_metadata.rds")
+se_organoid_metadata_unfiltered@meta.data
+
+```
+
+## Violin plots of unfiltered data
+
+```{r, message = FALSE, warning = FALSE}
+MapFeaturesSummary(se_organoid_metadata_unfiltered, features = "nFeature_Spatial", subplot_type = "violin", label_by = "sample_id")
+
+```
+
+```{r, message = FALSE, warning = FALSE}
+MapFeaturesSummary(se_organoid_metadata_unfiltered, features = "nCount_Spatial", subplot_type = "violin", label_by = "sample_id")
+```
+
+## Overlay maps on H&E images
+
+```{r, message = FALSE, warning = FALSE}
+se_organoid_metadata_unfiltered <- LoadImages(se_organoid_metadata_unfiltered, verbose = FALSE)
+cols <- RColorBrewer::brewer.pal(11, "Spectral") |> rev()
+p <- MapFeatures(se_organoid_metadata_unfiltered, 
+                 features = "nFeature_Spatial", 
+                 image_use = "raw", pt_size = 0.5,
+                 colors = cols)
+p
+```
+
+Circular shape on section 2 (sample BC) with lower counts. Analysis will focus on section 1 (sample BA).
+
+## Correlation gene counts and UMI counts
+
+```{r, message = FALSE, warning = FALSE}
+FeatureScatter(se_organoid_metadata_unfiltered, feature1 = "nCount_Spatial", feature2 = "nFeature_Spatial", group.by = "sample_id")
+```
+
+## Violin Plot of features (genes)
+
+```{r, message = FALSE, warning = FALSE}
+VlnPlot(se_organoid_metadata_unfiltered, features = "nFeature_Spatial", group.by = "sample_id", pt.size = 0.1)
+
+violin_QC <- VlnPlot(se_organoid_for_figures, features = "nFeature_Spatial", group.by = "sample_id", pt.size = 0)
+violin_QC
+ggsave(file = paste0("Figure_2B_QC_Violin_plot_per_sample.pdf"), plot = violin_QC, dpi = 300, width = 10, height =8)
+```
+
+## Violin Plot of UMI counts (molecules)
+
+```{r, message = FALSE, warning = FALSE}
+VlnPlot(se_organoid_metadata_unfiltered, features = "nCount_Spatial", group.by = "sample_id", pt.size = 0)
+```
+
+# QC Histograms
+
+### For all genes of BA and BC
+
+```{r Histograms BA+BC and all genes, message = FALSE, warning = FALSE}
+p1 <- ggplot() +
+  geom_histogram(data = se_organoid_metadata_unfiltered[[]], aes(nFeature_Spatial), fill = "red", alpha = 0.7, bins = 50) +
+  ggtitle("Unique genes per spot")
+p1
+
+p2 <- ggplot() +
+  geom_histogram(data = se_organoid_metadata_unfiltered[[]], aes(nCount_Spatial), fill = "red", alpha = 0.7, bins = 50) +
+  ggtitle("Total counts per spots")
+#replace nCount_Spatial by salmo_counts to get salmonella genes only
+p2
+
+gene_attr <- data.frame(nUMI = Matrix::rowSums(se_organoid_metadata_unfiltered@assays$Spatial@layers$counts), 
+                        nSpots = Matrix::rowSums(se_organoid_metadata_unfiltered@assays$Spatial@layers$counts > 0))
+
+p3 <- ggplot() +
+  geom_histogram(data = gene_attr, aes(nUMI), fill = "red", alpha = 0.7, bins = 50) +
+  scale_x_log10() +
+  ggtitle("Total counts per gene (log10 scale)")
+
+
+p4 <- ggplot() +
+  geom_histogram(data = gene_attr, aes(nSpots), fill = "red", alpha = 0.7,  bins = 50) +
+  ggtitle("Total spots per gene")
+
+(p1 - p2)/(p3 - p4)
+```
+
+### By organoid type of BA and BC (WT+, WT-, GsdmD, Nlrc4)
+
+```{r Histogram for the 4 organoid types, message = FALSE, warning = FALSE}
+p5 <- ggplot() +
+  geom_histogram(data = se_organoid_metadata_unfiltered[[]], aes(organoid_type), stat="count", fill = "red", alpha = 0.7, bins = 50) +
+  ggtitle("Total spots per organoid type")
+p5
+```
+
+### For all genes of BA and BC separately
+
+```{r Histograms separated BA from BC, message = FALSE, warning = FALSE}
+#Separate objects for BA and BC
+se_BA <- ReadVisiumData(infoTable[1,])
+se_BC <- ReadVisiumData(infoTable[2,])
+
+#For only BA or BC: total counts per gene
+se_BA$salmo_counts <- colSums(GetAssayData(se_BA)[salmo_genes,])
+se_BC$salmo_counts <- colSums(GetAssayData(se_BC)[salmo_genes,])
+
+
+p1 <- ggplot() +
+  geom_histogram(data = se_BA[[]], aes(nFeature_Spatial), fill = "red", alpha = 0.7, bins = 50) +
+  ggtitle("Unique genes per spot")
+
+p2 <- ggplot() +
+  geom_histogram(data = se_BA[[]], aes(nCount_Spatial), fill = "red", alpha = 0.7, bins = 50) +
+  ggtitle("Total counts per spots")
+#replace nCount_Spatial by salmo_counts to get salmonella genes only
+
+gene_attr_BA <- data.frame(nUMI = Matrix::rowSums(se_BA@assays$Spatial@layers$counts), 
+                        nSpots = Matrix::rowSums(se_BA@assays$Spatial@layers$counts > 0))
+
+p3 <- ggplot() +
+  geom_histogram(data = gene_attr_BA, aes(nUMI), fill = "red", alpha = 0.7, bins = 50) +
+  scale_x_log10() +
+  ggtitle("Total counts per gene (log10 scale)")
+
+
+p4 <- ggplot() +
+  geom_histogram(data = gene_attr_BA, aes(nSpots), fill = "red", alpha = 0.7,  bins = 50) +
+  ggtitle("Total spots per gene")
+
+(p1 - p2)/(p3 - p4)
+```
+
+# Remove Salmonella (STm) from count matrix
+
+## Subset data for mouse genes only (count matrix features)
+
+```{r get STm gene list and remove it from non-normalised object, message = FALSE, warning = FALSE}
+
+salmo_genes <- c("SL1344-2863", "SL1344-3753", "SL1344-2762", "SL1344-0848", "SL1344-2841", "SL1344-4483", "SL1344-2183", "SL1344-2852", "SL1344-1340", "SL1344-1198", "SL1344-1334", "SL1344-1027", "SL1344-3729", "SL1344-1161", "SL1344-1825", "SL1344-4255", "SL1344-1268", "SL1344-4266", "SL1344-1311")
+
+obj_mouse <- readRDS (file = "se_organoid_metadata.rds")
+obj_mouse
+obj_mouse@meta.data
+#mouse & salmo: 19484
+
+mouse_genes <- setdiff(rownames(obj_mouse), salmo_genes)
+length(mouse_genes)
+#19465
+mouse_only_obj <- SubsetSTData(obj_mouse, features = mouse_genes)
+mouse_only_obj
+```
+
+## Save data with only mouse genes in the count matrix
+
+```{r, message = FALSE, warning = FALSE}
+saveRDS(mouse_only_obj, file = "mouse_genes_only_obj.rds")
+```
+
+## Subset for the organoid borders with high UMI counts and feature counts
+
+According to the Violin plots of these counts and to their spatial mapping
+
+N.B. Not perfect cut between borders and the rest. The thresholds chosen do not cover all the borders, but if the thresholds are modified then spots that are NOT on the borders are selected too.
+
+```{r, Subset with borders, message = FALSE, warning = FALSE}
+
+#Object with only the borders
+border_counts <- SubsetSTData(mouse_only_obj, expression = nCount_Spatial > 50000 & nFeature_Spatial > 8000)
+#387 samples/spots
+MapFeaturesSummary(border_counts, features = "nFeature_Spatial", subplot_type = "violin", label_by = "sample_id")
+
+#Save border object in case of future analysis
+saveRDS(border_counts, file = "mouse_obj_subset_borders_high_counts.rds")
+```
+
+```{r, Subset without borders, message = FALSE, warning = FALSE}
+#Object without the borders
+mouse_no_borders_obj <- SubsetSTData(mouse_only_obj, expression = nCount_Spatial <= 50000 & nFeature_Spatial <= 8000)
+mouse_no_borders_obj 
+#20669 samples/spots
+MapFeaturesSummary(mouse_no_borders_obj, features = "nFeature_Spatial", subplot_type = "violin", label_by = "sample_id")
+
+saveRDS(mouse_no_borders_obj, file = "mouse_no_borders_obj.rds")
+
+```
+
+## Subset data for S.Tm genes only
+
+```{r get STm gene list, message = FALSE, warning = FALSE}
+
+salmo_genes <- c("SL1344-2863", "SL1344-3753", "SL1344-2762", "SL1344-0848", "SL1344-2841", "SL1344-4483", "SL1344-2183", "SL1344-2852", "SL1344-1340", "SL1344-1198", "SL1344-1334", "SL1344-1027", "SL1344-3729", "SL1344-1161", "SL1344-1825", "SL1344-4255", "SL1344-1268", "SL1344-4266", "SL1344-1311")
+
+obj_STm <- readRDS (file = "se_organoid_metadata.rds")
+obj_STm
+obj_STm@meta.data
+
+STm_genes <- intersect(rownames(obj_STm), salmo_genes)
+length(STm_genes) #19
+
+STm_only_obj <- SubsetSTData(obj_STm, features = STm_genes)
+STm_only_obj@meta.data
+```
+
+## Save data with only STm genes in the count matrix
+
+```{r, message = FALSE, warning = FALSE}
+saveRDS(STm_only_obj, file = "STm_genes_only_obj.rds")
+```
+
+# Filtering
+
+## Mito/Ribo/Hb genes
+
+```{r, message = FALSE, warning = FALSE}
+
+mt.genes <- grep(pattern = "^mt", x = rownames(mouse_no_borders_obj), value = TRUE)
+#se_organoid$percent.mito <- (Matrix::colSums(se_organoid@assays$Spatial@counts[mt.genes, ])/Matrix::colSums(se_organoid@assays$Spatial@counts))*100
+#no mt genes in the original probe set for the mouse
+
+#Ribosomal genes
+rp.genes <- grep(pattern = c("^Rpl|^Rps"), x = rownames(mouse_no_borders_obj), value = TRUE)
+#no genes in original probe set
+
+hb.genes <- grep(pattern = c("^Hba-|^Hbb-|^Hbq|^Hbs"), x = rownames(mouse_no_borders_obj), value = TRUE)
+#10
+# "Hbb-bt"  "Hbb-bs"  "Hbb-bh2" "Hbb-bh1" "Hbb-y"   "Hbs1l"   "Hba-x"   "Hbq1b"   "Hba-a2"  "Hbq1a"
+keep.genes <- setdiff(rownames(mouse_no_borders_obj), hb.genes)
+length(keep.genes) #19455
+mouse_no_borders_obj <- SubsetSTData(mouse_no_borders_obj, features = keep.genes)
+#from 19465 to 19455
+```
+
+## 1. Spot filtering in Mouse subset with borders (Done just in case. Jump to 2. for the filtering of interest without the borders)
+
+Use subsetted data containing only mouse genes and no Hb genes
+
+### 1.1 Tests: min UMI/spot \> 500
+
+```{r, Filter mouse counts, message = FALSE, warning = FALSE}
+nofilter <- VlnPlot(mouse_only_obj, features = "nCount_Spatial", pt.size = 0.1)
+#Filter for low UMI counts
+mouse_only_obj_filtered <- SubsetSTData(mouse_only_obj, expression = nCount_Spatial > 500)
+
+cat("Spots removed: ", ncol(mouse_only_obj) - ncol(mouse_only_obj_filtered), "\n")
+#500, Spots removed:  52
+#1000, 356 spots
+
+Filtered <- VlnPlot(mouse_only_obj_filtered, features = "nCount_Spatial", pt.size = 0.1)
+(nofilter - Filtered)
+ggsave((nofilter - Filtered), filename = "Filtering_Mouse_UMI_500_Before_After.pdf", width = 9, dpi = 300)
+
+# mouse_only_obj_filtered2 --> UMI > 500 and genes > 300
+```
+
+### 1.2 Spot filtering for different parameters
+
+-   Min UMIs/spot: nCount_Spatial \>= 100
+-   Min genes/spot: nFeature_Spatial \>= 100
+-   Max UMIs/spot: 150000
+-   Filter spots based on complexity? log10GenesPerUMI
+-   Min UMIs/gene = 1
+
+```{r, Filter mouse counts UMI & features, message = FALSE, warning = FALSE}
+#Min genes/spot: 100
+mouse_only_obj_filt <- SubsetSTData(mouse_only_obj, expression = nFeature_Spatial >= 100) 
+
+#Min UMIs/spot: 100
+mouse_only_obj_filt <- SubsetSTData(mouse_only_obj_filt, expression = nCount_Spatial >= 100)
+
+#Max UMIs/spot: 150000 (based on outliers in VlnPlot)
+VlnPlot(mouse_only_obj, features = "nCount_Spatial", group.by = "sample_id", pt.size = 0.1)
+mouse_only_obj_filt <- SubsetSTData(mouse_only_obj_filt, expression = nCount_Spatial <= 150000) 
+
+# Min UMIs/gene: 1
+gene.names <- rownames(mouse_only_obj)
+#Length: 19455
+umi.per.gene <- rowSums(GetAssayData(mouse_only_obj))
+temp.gene = c()
+for (i in 1:length(umi.per.gene)) {
+    if ((umi.per.gene[i] > 1) | (umi.per.gene[i] == 1)) {
+        temp.gene = union(temp.gene, gene.names[i])
+    }
+}
+#length temp.gene = 19336 --> 19455 - 19336 = 119 genes with 0 counts
+mouse_only_obj_filt <- SubsetSTData(mouse_only_obj_filt, features = temp.gene)
+
+```
+
+### 1.3 Calculate number of spots and genes removed
+
+```{r, Calculate number of spots and genes removed, message = FALSE, warning = FALSE}
+
+cat("Spots removed: ", ncol(mouse_only_obj) - ncol(mouse_only_obj_filt), "\n")
+#3
+cat("Genes removed: ", nrow(mouse_only_obj) - nrow(mouse_only_obj_filt), "\n")
+
+#10 Hb genes removed before
+#Total genes removed = 119 + 10 
+```
+
+### 1.4 QC check, plot and save after filtering
+
+```{r, Save image, message = FALSE, warning = FALSE}
+#Plot: Before vs After filtering 
+before <- VlnPlot(mouse_only_obj, features = "nCount_Spatial", pt.size = 0.1)
+after <- VlnPlot(mouse_only_obj_filt, features = "nCount_Spatial", pt.size = 0.1)
+(before - after)
+ggsave((before - after), filename = "Filter_Mouse_Before_After_nCount_Spatial_26032024.pdf", width = 9, dpi = 300)
+
+#QC Violin plot
+VlnPlot(mouse_only_obj_filt, features = c("nFeature_Spatial", "nCount_Spatial"), group.by = "sample_id", pt.size = 0)
+
+#Check all Hb genes are removed
+mouse_only_obj_filt$percent.hb <- PercentageFeatureSet(mouse_only_obj_filt, pattern = "^Hba-|^Hbb-|^Hbs|^Hbq1b|^Hbq1a")
+p1 <- VlnPlot(mouse_only_obj_filt, group.by = "sample_id", features = "percent.hb", pt.size = 0.05)
+p1
+
+#Spatial Heatmaps
+MapFeaturesSummary(mouse_only_obj_filt, features = "nCount_Spatial", label_by = "sample_id", subplot_type = "violin")
+MapFeaturesSummary(mouse_only_obj_filt, features = "nFeature_Spatial", label_by = "sample_id", subplot_type = "violin")
+```
+
+### 1.5 Save filtered mouse object with borders
+
+Removed Hb genes, low quality spots and genes with 0 counts.
+
+```{r, message = FALSE, warning = FALSE}
+saveRDS(mouse_only_obj_filt, file = "mouse_only_obj_filt.rds")
+```
+
+## 2. Spot filtering in Mouse subset WITHOUT borders
+
+### 2.1 Spot filtering
+
+Object "mouse_no_borders_obj" 
+- Min UMIs/spot: nCount_Spatial >= 100 
+- Min genes/spot: nFeature_Spatial >= 100 
+- Max UMIs/spot: None (as borders removed before) 
+- Min UMIs/gene = 1
+
+```{r, Filter mouse counts UMI & features, message = FALSE, warning = FALSE}
+#Min genes/spot: 100
+mouse_no_borders_obj_filt <- SubsetSTData(mouse_no_borders_obj, expression = nFeature_Spatial >= 100) 
+
+#Min UMIs/spot: 100
+mouse_no_borders_obj_filt <- SubsetSTData(mouse_no_borders_obj_filt, expression = nCount_Spatial >= 100)
+
+#Max UMIs/spot: no outliers in VlnPlot as borders were removed before
+#VlnPlot(mouse_no_borders_obj, features = "nCount_Spatial", group.by = "sample_id", pt.size = 0.1)
+#mouse_no_borders_obj_filt <- SubsetSTData(mouse_no_borders_obj_filt, expression = nCount_Spatial <= 150000) 
+
+# Min UMIs/gene: 1
+gene.names <- rownames(mouse_no_borders_obj)
+#Length: 19455
+umi.per.gene <- rowSums(GetAssayData(mouse_no_borders_obj))
+temp.gene = c()
+for (i in 1:length(umi.per.gene)) {
+    if ((umi.per.gene[i] > 1) | (umi.per.gene[i] == 1)) {
+        temp.gene = union(temp.gene, gene.names[i])
+    }
+}
+length(temp.gene)
+#length temp.gene = 19346 --> 19455 - 19346 = 99 genes with 0 counts
+mouse_no_borders_obj_filt <- SubsetSTData(mouse_no_borders_obj_filt, features = temp.gene)
+
+```
+
+### 2.2 Calculate number of spots and genes removed
+
+```{r, Calculate number of spots and genes removed, message = FALSE, warning = FALSE}
+
+cat("Spots removed: ", ncol(mouse_no_borders_obj) - ncol(mouse_no_borders_obj_filt), "\n")
+#1
+cat("Genes removed: ", nrow(mouse_no_borders_obj) - nrow(mouse_no_borders_obj_filt), "\n")
+#109 
+
+#10 Hb genes removed before
+#Total genes removed = 99 + 10 
+```
+
+### 2.3 QC check, plot and save after filtering
+
+```{r, message = FALSE, warning = FALSE}
+#Plot: Before vs After filtering 
+before <- VlnPlot(mouse_no_borders_obj, features = "nCount_Spatial", pt.size = 0.1)
+after <- VlnPlot(mouse_no_borders_obj_filt, features = "nCount_Spatial", pt.size = 0.1)
+(before - after)
+ggsave((before - after), filename = "Filter_Mouse_no_borders_Before_After_nCountSpatial_20240410.pdf", width = 9, dpi = 300)
+
+#QC Violin plot
+VlnPlot(mouse_no_borders_obj_filt, features = c("nFeature_Spatial", "nCount_Spatial"), group.by = "sample_id", pt.size = 0)
+
+#Check all Hb genes are removed
+mouse_no_borders_obj_filt$percent.hb <- PercentageFeatureSet(mouse_no_borders_obj_filt, pattern = "^Hba-|^Hbb-|^Hbs|^Hbq1b|^Hbq1a")
+p1 <- VlnPlot(mouse_no_borders_obj_filt, group.by = "sample_id", features = "percent.hb", pt.size = 0.05)
+p1
+
+#Spatial Heatmaps
+MapFeaturesSummary(mouse_no_borders_obj_filt, features = "nCount_Spatial", label_by = "sample_id", subplot_type = "violin")
+MapFeaturesSummary(mouse_no_borders_obj_filt, features = "nFeature_Spatial", label_by = "sample_id", subplot_type = "violin")
+```
+
+### 2.4 Save filtered mouse object WITHOUT borders
+
+Removed Hb genes, low quality spots and genes with 0 counts
+
+```{r, message = FALSE, warning = FALSE}
+saveRDS(mouse_no_borders_obj_filt, file = "mouse_no_borders_obj_filt.rds")
+```
+
+### 2.5 Merge filtered mouse subset with STm subset
+
+```{r, message = FALSE, warning = FALSE}
+STm_and_filtered_no_borders_mouse_merged <- MergeSTData(mouse_no_borders_obj_filt, STm_only_obj)
+STm_and_filtered_no_borders_mouse_merged
+
+saveRDS(STm_and_filtered_no_borders_mouse_merged, file = "STm_and_filtered_no_borders_mouse_merged.rds")
+```
+
+Filtering of STm subset not done as no correlation between nUMI and probe number.
+
+# Session info
+
+<details>
+
+<summary>
+
+</summary>
+
+```{r}
+sessionInfo()
+Sys.Date()
+Sys.time()
+```

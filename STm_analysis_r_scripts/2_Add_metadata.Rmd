@@ -1,0 +1,334 @@
+---
+title: "Add_metadata_Salmonella"
+author: "Sofia Rouot"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output: html_document
+format:
+  html:
+    code-fold: true
+    toc: true
+    number-sections: true
+    theme: spacelab
+    embed-resources: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r load packages, message = FALSE, warning = FALSE}
+  library(semla)
+  library(openxlsx)
+
+```
+
+## Read the data
+
+```{r, message = FALSE, warning = FALSE}
+se_organoid= readRDS (file = "se_organoid_unfiltered.rds")
+```
+
+## Metadata: Subset object for salmonella genes
+
+salmo_counts = the sum of the UMI counts for all Salmonella genes, for each spot
+
+```{r, message = FALSE, warning = FALSE}
+
+salmo_genes <- c("SL1344-2863", "SL1344-3753", "SL1344-2762", "SL1344-0848", "SL1344-2841", "SL1344-4483", "SL1344-2183", "SL1344-2852", "SL1344-1340", "SL1344-1198", "SL1344-1334", "SL1344-1027", "SL1344-3729", "SL1344-1161", "SL1344-1825", "SL1344-4255", "SL1344-1268", "SL1344-4266", "SL1344-1311")
+
+
+se_organoid$salmo_counts <- colSums(GetAssayData(se_organoid)[salmo_genes,])
+se_organoid@meta.data
+
+```
+
+## Visualise subset of salmonella genes
+
+```{r, message = FALSE, warning = FALSE}
+MapFeaturesSummary(se_organoid, features = "salmo_counts", section_number = 1, subplot_type = "violin")
+
+MapFeatures(se_organoid, features = "salmo_counts",label_by = "sample_id")
+
+```
+
+## Visualise cropped area for figures 
+
+```{r, message = FALSE, warning = FALSE}
+
+cols <- RColorBrewer::brewer.pal(11, "Spectral") |> rev()
+
+p <- MapFeatures(se_organoid, 
+                 section_number = 1, 
+                 features = "salmo_counts", 
+                 image_use = "raw", 
+                 color = cols, 
+                 pt_alpha = 0.5) &
+  labs(x="x-axis", y="y-axis") &
+  theme(panel.grid.major = element_line(linetype = "dashed"), 
+        axis.text = element_text(), 
+        axis.title = element_text())
+p
+
+#GsdmD organoid zoom-in
+q <- MapFeatures(se_organoid, features = c("salmo_counts"), label_by = "sample_id", image_use = "raw", 
+                 pt_size = 4, section_number = 1, 
+                 color = cols, crop_area = c(0.2, 0.1, 0.45, 0.48))
+q
+
+#Nlrc4 organoid zoom-in
+r <- MapFeatures(se_organoid, features = c("salmo_counts"), image_use = "raw", 
+                 pt_size = 4, section_number = 1, 
+                 color = cols, crop_area = c(0.48, 0.1, 0.68, 0.48))
+r
+
+```
+
+## Save salmo counts for Figure 2C
+```{r, message = FALSE, warning = FALSE}
+BA_salmo <- MapFeatures(se_organoid, features = "salmo_counts", section_number = 1,label_by = "sample_id")
+BA_salmo
+ggsave(file = paste0("salmo_counts_BA.pdf"), plot = BA_salmo, dpi = 300, width = 10, height =8)
+
+BC_salmo <- MapFeatures(se_organoid, features = "salmo_counts", section_number = 2,label_by = "sample_id")
+BC_salmo
+ggsave(file = paste0("salmo_counts_BC.pdf"), plot = BC_salmo, dpi = 300, width = 10, height =8)
+
+#With scale bar
+BA_salmo_scale_bar <- MapFeatures(se_organoid, 
+                                  features = "salmo_counts", pt_size = 1.5, section_number = 1,label_by ="sample_id", 
+                                  override_plot_dims = TRUE, add_scalebar = TRUE,
+                                  scalebar_gg = scalebar(x = 2000, breaks = 11, highlight_breaks = c(1, 6, 11)),
+                                  scalebar_position = c(0.7, 0.07), 
+                                  scalebar_height = 0.07) & labs(fill= "UMIs per spot")
+BA_salmo_scale_bar
+ggsave(file = paste0("Figure_2C_salmo_counts_BA_final.pdf"), plot = BA_salmo_scale_bar, dpi = 300, width = 10, height =8)
+
+#Zoom-in crop area of GsdmD condition
+q <- MapFeatures(se_organoid, features = c("salmo_counts"), label_by = "sample_id", 
+                 pt_size = 3, section_number = 1,
+                 crop_area = c(0.2, 0.1, 0.46, 0.48), add_scalebar = TRUE,
+                 scalebar_gg = scalebar(x = 1000),
+                 scalebar_position = c(0.74, 0.04), 
+                 scalebar_height = 0.07) & 
+                    ThemeLegendRight()
+q
+
+ggsave(file = paste0("salmo_counts_BA_GsdmD_2.pdf"), plot = q, dpi = 300, width = 10, height =8)
+
+# image_use = "raw"
+
+#Zoom-in crop area of WT+ condition
+w <- MapFeatures(se_organoid, features = c("salmo_counts"), label_by = "sample_id", 
+                 pt_size = 3, section_number = 1,
+                 crop_area = c(0.2, 0.48, 0.46, 0.87), add_scalebar = TRUE,
+                 scalebar_gg = scalebar(x = 1000),
+                 scalebar_position = c(0.74, 0.04), 
+                 scalebar_height = 0.07) &
+        theme(legend.position = "right", 
+        legend.text = element_text(angle = 0),
+        legend.margin = margin(t = 50, r = 0, b = 100, l = 0))
+w
+
+ggsave(file = paste0("salmo_counts_BA_WT+_2.pdf"), plot = w, dpi = 300, width = 10, height =8)
+
+```
+
+## Zoom in salmo counts and a DE gene for potential figure 2.E
+```{r, message = FALSE, warning = FALSE}
+p_GsdmD <- MapFeatures(se_organoid, 
+                        features = c("salmo_counts", "Hsf2"), label_by = "sample_id",
+                        slot = "counts",
+                        pt_size = 1, 
+                        section_number = 1,
+                        crop_area = c(0.2, 0.1, 0.46, 0.48), add_scalebar = TRUE,
+                 scalebar_gg = scalebar(x = 1000),
+                 scalebar_position = c(0.74, 0.04), 
+                 scalebar_height = 0.07) 
+
+p_GsdmD_zoom_in <- MapFeatures(se_organoid, 
+                      features = c("salmo_counts", "Hsf2"),
+                      slot = "counts",
+                      pt_size = 5, 
+                      section_number = 1, 
+                      label_by = "sample_id", 
+                      crop_area = c(0.4, 0.1, 0.46, 0.2), add_scalebar = TRUE,
+                 scalebar_gg = scalebar(x = 200),
+                 scalebar_position = c(0.75, 0.09), 
+                 scalebar_height = 0.07) &
+  theme(plot.title = element_blank(), 
+        plot.subtitle = element_blank(), 
+        legend.position = "none")
+
+GsdmD_salmo_Pmepa1 <- (p_GsdmD / p_GsdmD_zoom_in)
+GsdmD_salmo_Pmepa1
+
+ggsave(file = paste0("fig.2.E.Salmo_counts_Hsf2_GsdmD_zoom_in.pdf"), plot = GsdmD_salmo_Pmepa1, dpi = 300, width = 10, height =8)
+
+
+p_WT <- MapFeatures(se_organoid, 
+                        features = c("salmo_counts", "Pmepa1"), label_by = "sample_id",
+                        slot = "counts",
+                        pt_size = 1, 
+                        section_number = 1,
+                        crop_area = c(0.2, 0.48, 0.46, 0.87), add_scalebar = TRUE,
+                 scalebar_gg = scalebar(x = 1000),
+                 scalebar_position = c(0.74, 0.04), 
+                 scalebar_height = 0.07) 
+
+p_WT_zoom_in <- MapFeatures(se_organoid, 
+                      features = c("salmo_counts", "Pmepa1"),
+                      slot = "counts",
+                      pt_size = 5, 
+                      section_number = 1, 
+                      label_by = "sample_id", 
+                      crop_area = c(0.23, 0.48, 0.3, 0.58),add_scalebar = TRUE,
+                 scalebar_gg = scalebar(x = 200),
+                 scalebar_position = c(0.75, 0.02), 
+                 scalebar_height = 0.07) &
+  theme(plot.title = element_blank(), 
+        plot.subtitle = element_blank(), 
+        legend.position = "none")
+
+WT_salmo_Pmepa1 <- (p_WT / p_WT_zoom_in)
+WT_salmo_Pmepa1
+
+ggsave(file = paste0("fig.2.E.Salmo_counts_Pmepa1_WT+_zoom_in.pdf"), plot = WT_salmo_Pmepa1, dpi = 300, width = 10, height =8)
+
+
+#Just for salmo_counts zoom in for fig 2.B.
+p_WT_salmo <- MapFeatures(se_organoid, 
+                        features = "salmo_counts", label_by = "sample_id",
+                        slot = "counts",
+                        pt_size = 1.5, 
+                        section_number = 1,
+                        crop_area = c(0.2, 0.48, 0.46, 0.87), add_scalebar = TRUE,
+                 scalebar_gg = scalebar(x = 1000),
+                 scalebar_position = c(0.64, 0.04), 
+                 scalebar_height = 0.07) &
+                  theme(legend.position = "right", legend.text = element_text(angle = 0)) & labs(fill= "UMIs per spot")
+
+p_WT_salmo_zoom_in <- MapFeatures(se_organoid, 
+                      features = "salmo_counts",
+                      slot = "counts",
+                      pt_size = 9, 
+                      section_number = 1, 
+                      label_by = "sample_id", 
+                      crop_area = c(0.23, 0.48, 0.3, 0.58),add_scalebar = TRUE,
+                 scalebar_gg = scalebar(x = 200),
+                 scalebar_position = c(0.65, 0.02), 
+                 scalebar_height = 0.07) &
+      theme(plot.title = element_blank(), 
+        plot.subtitle = element_blank(), legend.position = "right", legend.text = element_text(angle = 0)) & labs(fill= "UMIs per spot")
+
+
+WT_salmo_ <- (p_WT_salmo / p_WT_salmo_zoom_in)
+WT_salmo_
+
+p_WT_salmo
+p_WT_salmo_zoom_in
+
+ggsave(file = paste0("Figure_2B_Salmo_counts_WT+_zoom_in2_biggerspotsize.pdf"), plot = p_WT_salmo_zoom_in, dpi = 300, width = 10, height =8)
+```
+
+
+## Look at individual genes
+
+```{r, message = FALSE, warning = FALSE}
+cols <- viridis::rocket(11, direction = -1)
+
+inflammatory_genes <- MapFeatures(se_organoid, 
+                 features = "Naip2",
+                 colors = cols,
+                 section_number = 1, 
+                 pt_size = 0.5,
+                 slot = "counts")
+inflammatory_genes
+
+ggsave(file = "Figure_Naip2_mouse_gene_BA.pdf", plot = inflammatory_genes, width = 15, height =5, dpi = 300)
+
+
+
+se_organoid <- LoadImages(se_organoid, verbose = FALSE)
+
+cols_overlay <- RColorBrewer::brewer.pal(11, "Spectral") |> rev()
+
+MapFeatures(se_organoid, 
+                 features = "Cftr", 
+                 image_use = "raw", pt_size = 0.5,
+                 colors = cols_overlay,
+                 slot = "counts")
+
+
+```
+
+## Metadata
+### Metadata for each category: cytosolic, vacuolar, infection (sipC + prgJ) and housekeeping
+
+```{r, message = FALSE, warning = FALSE}
+cyt <- c("SL1344-2863", "SL1344-3753", "SL1344-2762", "SL1344-0848", "SL1344-2841", "SL1344-4483", "SL1344-2183", "SL1344-2852")
+
+vac <- c("SL1344-1340", "SL1344-1198", "SL1344-1334", "SL1344-1027", "SL1344-3729", "SL1344-1161", "SL1344-1825", "SL1344-4255")
+
+infection <- c("SL1344-2863", "SL1344-2852")
+housekeeping <- c("SL1344-1268", "SL1344-4266", "SL1344-1311")
+
+se_organoid$salmo_cyt <- colSums(GetAssayData(se_organoid)[cyt,])
+se_organoid$salmo_vac <- colSums(GetAssayData(se_organoid)[vac,])
+se_organoid$salmo_infection <- colSums(GetAssayData(se_organoid)[infection,])
+se_organoid$salmo_housekeeping <- colSums(GetAssayData(se_organoid)[housekeeping,])
+
+MapFeaturesSummary(se_organoid, features = "salmo_housekeeping", section_number = 1, subplot_type = "violin")
+
+
+```
+
+## Metadata: Manual annotation to divide into the 4 different organoids
+
+### Semla FeatureViewer and Lasso tool
+
+```{r, message = FALSE, warning = FALSE}
+
+#Load images
+se_organoid <- LoadImages(se_organoid)
+ImagePlot(se_organoid)
+
+se_organoid <- FeatureViewer(se_organoid)
+
+se_organoid@meta.data
+
+VlnPlot(se_organoid, features = "nFeature_Spatial", group.by = "organoid_type", pt.size = 0)
+```
+
+## Save object
+
+### The object has the added metadata and manual annotation (FeatureViewer)
+
+```{r save object with salmonella analysis, message = FALSE, warning = FALSE}
+
+saveRDS(se_organoid, file = "se_organoid_metadata.rds")
+
+```
+
+## Save metadata
+
+```{r save labeled object with metadata, message = FALSE, warning = FALSE}
+
+write.csv(se_organoid@meta.data[,], file = "V53S18-011_se_organoid_metadata.csv")
+write.xlsx(se_organoid@meta.data[,], file = "V53S18-011_se_organoid_metadata.xlsx", colNames=TRUE, rowNames=TRUE)
+
+```
+
+## Session info
+
+<details>
+
+<summary>
+
+</summary>
+
+```{r}
+sessionInfo()
+Sys.Date()
+Sys.time()
+```
