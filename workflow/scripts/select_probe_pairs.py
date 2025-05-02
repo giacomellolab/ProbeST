@@ -2,7 +2,7 @@
 Snakemake pipeline. Author: Sofia Rouot.
 
 This is a script for selecting final probe pairs based on: 
-- off-target hybridisation (BLAST output)
+- off-target hybridization (BLAST output)
 - non-overlapping target region
 - max homopolymer repeats RHS = 5 
 - max probe pairs per gene = 3
@@ -44,14 +44,13 @@ def main(primer3_output_file, blast_output_file, probes_csv, selected_probes, pr
     nonspec_probes = hits2['probe_id'].values.tolist()
     log_file.write(f"Number of non-specific probes: {len(nonspec_probes)}\n")
 
-    for sequence in sequences: 
-        for i, probe in enumerate(sequence.PROBES):
-            for nonspec_probe in nonspec_probes:
-                if nonspec_probe == probe.LHS_ID: 
-                    del sequence.PROBES[i]
-                    break 
-        log_file.write(f"Number of probes after specificity filter for sequence {sequence.ID}: {len(sequence.PROBES)}\n")
-
+    for sequence in sequences:
+    # Create a new list without non-specific probes
+        sequence.PROBES = [
+            probe for probe in sequence.PROBES if probe.LHS_ID not in nonspec_probes
+    ]
+        
+    log_file.write(f"Number of probes after specificity filter for sequence {sequence.ID}: {len(sequence.PROBES)}\n")
 
     # Delete probes (RHS) which contain a homopolymer repeat of >5 identical nucleotides 
     K = 5 #initiate max length of homopolymer repeat 
