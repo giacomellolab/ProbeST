@@ -1,8 +1,0 @@
-the final amount of probes is:  56 
-
-the total amount of sequences designed probes for:  21
-the amount of sequences containing  0  probes:  2
-the amount of sequences containing  1  probes:  2
-the amount of sequences containing  2  probes:  3
-the amount of sequences containing  3  probes:  16
-the amount of sequences containing  4  probes:  0
