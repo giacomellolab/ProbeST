@@ -1,4 +1,4 @@
-blast_db_dir: "/Users/sofiarouot/Documents/SnakeMake/part2_cross-hyb/db"
+blast_db_dir: "path/to/db"
 blast_dbs:
   - "env_nt"
   - "nt_prok"
