@@ -62,6 +62,10 @@ The comment "missing output files" is normal.
 ```
 snakemake -c 1 --use-conda -s Snakefile_name
 ```
+or
+```
+snakemake --use-conda --conda-frontend mamba -c1
+```
 
 8. If you want to delete outputs before running it again
 
@@ -89,6 +93,9 @@ In order to use this pipeline, the headers in the FASTA file with the genes of i
 
 Example:
 >gene_ID:CBW18961.1 gene_name:sipC transcript_ID:CBW18961.1_2869
+
+We provide an example of a python script to format the headers.
+
 
 ## For further information on Snakemake
 
