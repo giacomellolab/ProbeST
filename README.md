@@ -4,7 +4,9 @@ ProbeST allows to custom design binding probes for any gene of any species to be
 
 ProbeST follows the [10X Genomics recommendations](https://www.10xgenomics.com/support/spatial-gene-expression-ffpe/documentation/workflows/ffpe-v-1/steps/experimental-design-and-planning/custom-probe-design-for-visium-spatial-gene-expression-and-chromium-single-cell-gene-expression-flex) for binding probes with the Visium platform.
 
-[Fig1_Chemistry_ProbeST_workflow_20250530_SR copy.pdf](https://github.com/user-attachments/files/20866227/Fig1_Chemistry_ProbeST_workflow_20250530_SR.copy.pdf)
+<img width="1080" alt="Chemistry_panel" src="https://github.com/user-attachments/assets/de08c02d-3a82-4bfa-8fdd-65dd9210ef80" />
+
+<img width="1080" alt="ProbeST_pipeline" src="https://github.com/user-attachments/assets/0783caa7-7625-4dfe-89b2-825353fe4b62" />
 
 
 ProbeST is built as a SnakeMake workflow, to be run from the terminal command line.
