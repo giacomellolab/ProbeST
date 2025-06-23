@@ -1,0 +1,532 @@
+---
+title: "Colocalization_SR"
+author: "Sofia Rouot"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output: html_document
+format:
+  html:
+    code-fold: true
+    toc: true
+    number-sections: true
+    theme: spacelab
+    embed-resources: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load packages, message = FALSE, warning = FALSE}
+  library(semla)
+  library(ggplot2)
+  library(openxlsx)
+
+
+#if (!require("BiocManager", quietly = TRUE))
+#    install.packages("BiocManager")
+
+#BiocManager::install("EnhancedVolcano")
+
+  library(EnhancedVolcano)
+
+#if (!require("BiocManager", quietly = TRUE))
+#    install.packages("BiocManager")
+
+#BiocManager::install("DESeq2")
+
+```
+
+### I) Read the normalised data (SCT assay)
+
+Filtered and normalised mouse data from sample BA
+```{r, message = FALSE, warning = FALSE}
+
+mouse_BA_filt_norm = readRDS (file = "mouse_no_borders_filt.BA.nfeat.rds")
+mouse_BA_filt_norm
+mouse_BA_filt_norm@meta.data
+
+```
+
+## II) Add Salmonella S. Tm binary metadata to object
+
+```{r make Salmonella binary metadata, message = FALSE, warning = FALSE}
+
+mouse_BA_filt_norm@meta.data$Salmo <- ifelse((mouse_BA_filt_norm@meta.data$salmo_counts >= 1), 1, 0)
+mouse_BA_filt_norm@meta.data
+```
+
+
+```{r check metadata, message = FALSE, warning = FALSE}
+
+identical(mouse_BA_filt_norm@meta.data$Salmo, mouse_BA_filt_norm@meta.data$Salmo)
+
+```
+
+## III) Prep FindMarkers with PrepSCTFindMarkers()
+
+```{r prep for FindMarkers, message = FALSE, warning = FALSE}
+mouse_BA_filt_norm_prep <- PrepSCTFindMarkers(mouse_BA_filt_norm, assay = "SCT", verbose = TRUE)
+mouse_BA_filt_norm_prep
+mouse_BA_filt_norm_prep@meta.data
+```
+
+## IV) Save object with SCT prepped for colocalization
+
+```{r save object SCTprep, message = FALSE, warning = FALSE}
+saveRDS(mouse_BA_filt_norm_prep, file = "mouse_BA_filt_norm_prepSCT.rds")
+```
+
+
+
+
+# 1) DEA Salmo+ vs salmo- spots
+
+# Subset for each organoid quarter 
+
+```{r 4 subsets: each organoid type, message = FALSE, warning = FALSE}
+
+#change this to each of the 4 organoid conditions
+spots_keep_organoid = colnames(mouse_BA_filt_norm_prep)[mouse_BA_filt_norm_prep$organoid_type == "GsdmD"]
+spots_keep_organoid
+
+#WT-
+mouse_BA_filt_norm_WT_not_infected <- SubsetSTData(mouse_BA_filt_norm_prep, spots = spots_keep_organoid)
+mouse_BA_filt_norm_WT_not_infected@meta.data
+
+#WT+
+mouse_BA_filt_norm_WT_infected <- SubsetSTData(mouse_BA_filt_norm_prep, spots = spots_keep_organoid)
+mouse_BA_filt_norm_WT_infected@meta.data
+
+#Nlrc4
+mouse_BA_filt_norm_Nlrc4 <- SubsetSTData(mouse_BA_filt_norm_prep, spots = spots_keep_organoid)
+mouse_BA_filt_norm_Nlrc4@meta.data
+
+#GsdmD
+mouse_BA_filt_norm_GsdmD <- SubsetSTData(mouse_BA_filt_norm_prep, spots = spots_keep_organoid)
+mouse_BA_filt_norm_GsdmD@meta.data
+
+```
+
+## DEA FindMarkers for each organoid condition
+
+Wilcoxon test of Salmo+ vs. Salmo- spots (non-parametric Wilcoxon rank sum test)
+```{r coloca Wilcoxon DEA per organoid condition, BA, message = FALSE, warning = FALSE}
+
+#If running on a subset of the original object after running PrepSCTFindMarkers(), FindMarkers() should be invoked with recorrect_umi = FALSE to use the existing corrected counts
+
+mouse_BA_de_genes_WT_not_infected <- FindMarkers(mouse_BA_filt_norm_WT_not_infected, assay = "SCT", ident.1 = 1, ident.2 = 0, logfc.threshold = 0.1, group.by = "Salmo", test.use = "wilcox", recorrect_umi = FALSE)
+mouse_BA_de_genes_WT_not_infected
+
+mouse_BA_de_genes_WT_infected <- FindMarkers(mouse_BA_filt_norm_WT_infected, assay = "SCT", ident.1 = 1, ident.2 = 0, logfc.threshold = 0.1, group.by = "Salmo", test.use = "wilcox", recorrect_umi = FALSE)
+mouse_BA_de_genes_WT_infected
+
+mouse_BA_de_genes_Nlrc4 <- FindMarkers(mouse_BA_filt_norm_Nlrc4, assay = "SCT", ident.1 = 1, ident.2 = 0, logfc.threshold = 0.1, group.by = "Salmo", test.use = "wilcox", recorrect_umi = FALSE)
+mouse_BA_de_genes_Nlrc4
+
+mouse_BA_de_genes_GsdmD <- FindMarkers(mouse_BA_filt_norm_GsdmD, assay = "SCT", ident.1 = 1, ident.2 = 0, logfc.threshold = 0.1, group.by = "Salmo", test.use = "wilcox", recorrect_umi = FALSE)
+mouse_BA_de_genes_GsdmD
+```
+
+## Save DE genes
+
+```{r save de genes per organoid, message = FALSE, warning = FALSE}
+saveRDS(mouse_BA_de_genes_WT_not_infected, file = "mouse_BA_filt_norm_de_genes_WT_not_infected.rds")
+
+saveRDS(mouse_BA_de_genes_WT_infected, file = "mouse_BA_filt_norm_de_genes_WT_infected.rds")
+
+saveRDS(mouse_BA_de_genes_Nlrc4, file = "mouse_BA_filt_norm_de_genes_Nlrc4.rds")
+
+saveRDS(mouse_BA_de_genes_GsdmD, file = "mouse_BA_filt_norm_de_genes_GsdmD.rds")
+```
+
+## Filter DE genes by adjusted p-value
+
+```{r Filter the significant DE genes: adjusted p value < 0.05, message = FALSE, warning = FALSE}
+
+mouse_BA_de_genes_WT_not_infected_wilcox_p0.05 <- mouse_BA_de_genes_WT_not_infected[which(mouse_BA_de_genes_WT_not_infected$p_val_adj < 0.05),]
+mouse_BA_de_genes_WT_not_infected_wilcox_p0.05
+
+mouse_BA_de_genes_WT_infected_wilcox_p0.05 <- mouse_BA_de_genes_WT_infected[which(mouse_BA_de_genes_WT_infected$p_val_adj < 0.05),]
+
+mouse_BA_de_genes_Nlrc4_wilcox_p0.05 <- mouse_BA_de_genes_Nlrc4[which(mouse_BA_de_genes_Nlrc4$p_val_adj < 0.05),]
+
+mouse_BA_de_genes_GsdmD_wilcox_p0.05 <- mouse_BA_de_genes_GsdmD[which(mouse_BA_de_genes_GsdmD$p_val_adj < 0.05),]
+```
+
+## Save filtered DE gene lists p val adj > 0.05
+
+```{r save significant DE genes, message = FALSE, warning = FALSE}
+
+write.xlsx(mouse_BA_de_genes_WT_not_infected_wilcox_p0.05, file = "seq2_colocalisation_wilcox_mouse_BA_filt_norm_de_genes_WT_not_infected_p0.05.xlsx", colNames=TRUE, rowNames=TRUE)
+
+write.xlsx(mouse_BA_de_genes_WT_infected_wilcox_p0.05, file = "seq2_colocalisation_wilcox_mouse_BA_filt_norm_de_genes_WT_infected_p0.05.xlsx", colNames=TRUE, rowNames=TRUE)
+
+write.xlsx(mouse_BA_de_genes_Nlrc4_wilcox_p0.05, file = "seq2_colocalisation_wilcox_mouse_BA_filt_norm_de_genes_Nlrc4_p0.05.xlsx", colNames=TRUE, rowNames=TRUE)
+
+write.xlsx(mouse_BA_de_genes_GsdmD_wilcox_p0.05, file = "seq2_colocalisation_wilcox_mouse_BA_filt_norm_de_genes_GsdmD_p0.05.xlsx", colNames=TRUE, rowNames=TRUE)
+```
+
+## Plots
+
+### Volcano Plot of significant DE genes
+```{r Volcano plot of significant de genes for eahc organoid, message = FALSE, warning = FALSE}
+mouse_BA_filt_norm_de_genes_WT_infected = readRDS (file = "mouse_BA_filt_norm_de_genes_WT_infected.rds")
+
+#Replace object name and plot title to the corresponding organoid
+
+  # create custom key-value pairs for 'high' and 'low' expression by fold-change
+  # this can be achieved with nested ifelse statements
+  keyvals_WT <- ifelse(
+    mouse_BA_filt_norm_de_genes_WT_infected$avg_log2FC < -0.4 & mouse_BA_filt_norm_de_genes_WT_infected$p_val_adj < 0.05, 'royalblue',
+      ifelse(mouse_BA_filt_norm_de_genes_WT_infected$avg_log2FC > 0.4 & mouse_BA_filt_norm_de_genes_WT_infected$p_val_adj < 0.05, "#EE8262",
+        "grey75"))
+  keyvals_WT[is.na(keyvals_WT)] <- "grey75"
+  names(keyvals_WT)[keyvals_WT == "#EE8262"] <- 'Elevated in Salmonella+ spots'
+  names(keyvals_WT)[keyvals_WT == "grey75"] <- 'Not significant'
+  names(keyvals_WT)[keyvals_WT == 'royalblue'] <- 'Reduced in Salmonella+ spots'
+
+
+coloca_volcano_mouse_BA_filt_norm_de_genes_WT_infected <- EnhancedVolcano(mouse_BA_filt_norm_de_genes_WT_infected,
+      lab = rownames(mouse_BA_filt_norm_de_genes_WT_infected),
+      x = "avg_log2FC", 
+      y = "p_val_adj",
+      title = "Salmo+ spots versus Salmo- spots in WT+ organoid (slide BA)",
+      selectLab = rownames(mouse_BA_filt_norm_de_genes_WT_infected)[which(names(keyvals_WT) %in% c('Elevated in Salmonella+ spots', 'Reduced in Salmonella+ spots'))],
+      pCutoff = 0.05,
+      FCcutoff = 0.4,
+      pointSize = 2,
+      labSize = 3,
+      colCustom = keyvals_WT,
+      colAlpha = 1,
+      legendPosition = 'right',
+      legendLabSize = 11,
+      legendIconSize = 2.0,
+      drawConnectors = TRUE, 
+      widthConnectors = 0.1,
+      typeConnectors = "closed", 
+      endsConnectors = "first", 
+      lengthConnectors = unit(0.000001, "npc"),
+      gridlines.minor = FALSE,
+      gridlines.major = FALSE,
+      xlim = c(min(mouse_BA_filt_norm_de_genes_WT_infected[["avg_log2FC"]], na.rm = TRUE) - 0.25, max(mouse_BA_filt_norm_de_genes_WT_infected[["avg_log2FC"]], na.rm = TRUE))) + xlab("Average log2 fold change")
+
+coloca_volcano_mouse_BA_filt_norm_de_genes_WT_infected
+      
+
+ggsave(file = paste0("coloca_volcano_mouse_BA_filt_norm_de_genes_WT_infected_bigger.pdf"), plot = coloca_volcano_mouse_BA_filt_norm_de_genes_WT_infected, dpi = 300, width = 10, height =8)
+
+```
+
+## DE genes of interest
+### Spatial mapping of these gene counts in original data
+```{r DE genes of interest mapping}
+se_organoid_metadata= readRDS (file = "se_organoid_metadata.rds")
+se_organoid_metadata@meta.data
+
+spatial_data_metadata <- GetStaffli(se_organoid_metadata)
+
+#Load H&E images 
+se_organoid_metadata <- LoadImages(se_organoid_metadata)
+ImagePlot(se_organoid_metadata)
+
+cols <- viridis::rocket(11, direction = -1)
+MapFeatures(se_organoid_for_figures, 
+                 features = "Gsdmd",
+                 section_number = 1,
+                 label_by = "sample_id",
+                 colors = cols,
+                 slot = "counts")
+
+```
+
+
+# DotPlot: Subset for each organoid quarter 
+
+```{r 4 subsets: each organoid type, message = FALSE, warning = FALSE}
+
+mouse_BA_filt_norm_prepSCT = readRDS (file = "mouse_BA_filt_norm_prepSCT.rds")
+
+
+#change this to the organoid type you want
+spots_keep_organoid = colnames(mouse_BA_filt_norm_prepSCT)[mouse_BA_filt_norm_prepSCT$organoid_type == "Nlrc4"]
+spots_keep_organoid
+
+#WT-
+mouse_BA_filt_norm_WT_not_infected <- SubsetSTData(mouse_BA_filt_norm_prep, spots = spots_keep_organoid)
+mouse_BA_filt_norm_WT_not_infected@meta.data
+
+#WT+
+mouse_BA_filt_norm_WT_infected <- SubsetSTData(mouse_BA_filt_norm_prepSCT, spots = spots_keep_organoid)
+mouse_BA_filt_norm_WT_infected@meta.data
+
+#Nlrc4
+mouse_BA_filt_norm_Nlrc4 <- SubsetSTData(mouse_BA_filt_norm_prepSCT, spots = spots_keep_organoid)
+mouse_BA_filt_norm_Nlrc4@meta.data
+
+#GsdmD
+mouse_BA_filt_norm_GsdmD <- SubsetSTData(mouse_BA_filt_norm_prepSCT, spots = spots_keep_organoid)
+mouse_BA_filt_norm_GsdmD@meta.data
+
+```
+
+```{r plot dotplot DE genes STm+ vs STm- spots in each condition}
+
+#Figure 2E-F
+
+DE_genes_WT_infected <- c("Olfr605", "Meiob", "Pcsk6", "Ppan", "Ctps", "Tmem30b", "Angptl4", "Pole", "Egln3")
+
+DE_genes_GsdmD <- c("Tunar", "Dsg3", "Aadacl4", "Hsf2")
+
+DE_genes_Nlrc4 <- c("Cyp51", "Olfr1458", "Ttc39d", "Sbk3", "Tnf", "Prom1", "Atg3", "Atp1a1", "Sis", "Atp1b1", "Smim24", "Per2")
+
+#WT+ condition
+DE_genes_Salmo_spots_WT_dotplot <- DotPlot(mouse_BA_filt_norm_WT_infected, assay = "SCT", features = DE_genes_WT_infected, cols = c("#feebe2", "#7a0177"), group.by = "Salmo", dot.scale = 10) + RotatedAxis() + scale_x_discrete(labels = DE_genes_WT_infected) + scale_y_discrete(labels = expression("Salmo" ^ "-", "Salmo" ^ "+")) + xlab("Mouse DE Genes") + ylab("WT+ Condition")
+
+DE_genes_Salmo_spots_WT_dotplot
+
+ggsave(file = "Figure_2F_dotplot_Salmo_DE_genes_in_WT+.pdf", plot = DE_genes_Salmo_spots_WT_dotplot, width = 15, height =5, dpi = 300)
+
+#Nlrc4 condition
+DE_genes_Salmo_spots_Nlrc4_dotplot <- DotPlot(mouse_BA_filt_norm_Nlrc4, assay = "SCT", features = DE_genes_Nlrc4, cols = c("#feebe2", "#7a0177"), group.by = "Salmo", dot.scale = 10) + RotatedAxis() + scale_x_discrete(labels = DE_genes_Nlrc4) + scale_y_discrete(labels = expression("Salmo" ^ "-", "Salmo" ^ "+")) + xlab("Mouse DE Genes") + ylab("Nlrc4 Condition")
+
+#DE_genes_Salmo_spots_WT_infected_dotplot
+DE_genes_Salmo_spots_Nlrc4_dotplot
+
+ggsave(file = "Figure_2F_dotplot_Salmo_DE_genes_in_Nlrc4.pdf", plot = DE_genes_Salmo_spots_Nlrc4_dotplot, width = 15, height =5, dpi = 300)
+
+
+#GsdmD condition
+DE_genes_Salmo_spots_GsdmD_dotplot <- DotPlot(mouse_BA_filt_norm_GsdmD, assay = "SCT", features = DE_genes_GsdmD, cols = c("#feebe2", "#7a0177"), group.by = "Salmo", dot.scale = 10) + RotatedAxis() + scale_x_discrete(labels = DE_genes_GsdmD) + scale_y_discrete(labels = expression("Salmo" ^ "-", "Salmo" ^ "+")) + xlab("Mouse DE Genes") + ylab("GsdmD Condition")
+
+#DE_genes_Salmo_spots_WT_infected_dotplot
+DE_genes_Salmo_spots_GsdmD_dotplot
+
+ggsave(file = "Figure_2F_dotplot_Salmo_DE_genes_in_GsdmD.pdf", plot = DE_genes_Salmo_spots_GsdmD_dotplot, width = 15, height =5, dpi = 300)
+
+```
+
+
+
+# 2) DEA between organoid conditions
+
+Wilcoxon test
+```{r coloca Wilcoxon DEA per organoid condition, BA, message = FALSE, warning = FALSE}
+#Read Object SCT prepped for DEA
+mouse_BA_filt_norm_prep = readRDS (file = "mouse_BA_filt_norm_prepSCT.rds")
+mouse_BA_filt_norm_prep
+mouse_BA_filt_norm_prep@meta.data
+
+# WT+, Nlrc4 and GsdmD vs. WT-
+mouse_BA_de_genes_WT_infected_vs_WT_not_infected <- FindMarkers(mouse_BA_filt_norm_prep, assay = "SCT", ident.1 = "WT+", ident.2 = "WT-", logfc.threshold = 0.1, group.by = "organoid_type", test.use = "wilcox")
+mouse_BA_de_genes_WT_infected_vs_WT_not_infected
+
+mouse_BA_de_genes_Nlrc4_vs_WT_not_infected <- FindMarkers(mouse_BA_filt_norm_prep, assay = "SCT", ident.1 = "Nlrc4", ident.2 = "WT-", logfc.threshold = 0.1, group.by = "organoid_type", test.use = "wilcox")
+mouse_BA_de_genes_Nlrc4_vs_WT_not_infected
+
+mouse_BA_de_genes_GsdmD_vs_WT_not_infected <- FindMarkers(mouse_BA_filt_norm_prep, assay = "SCT", ident.1 = "GsdmD", ident.2 = "WT-", logfc.threshold = 0.1, group.by = "organoid_type", test.use = "wilcox")
+mouse_BA_de_genes_GsdmD_vs_WT_not_infected
+
+#Nlrc4 and GsdmD vs. WT+
+mouse_BA_de_genes_Nlrc4_vs_WT_infected <- FindMarkers(mouse_BA_filt_norm_prep, assay = "SCT", ident.1 = "Nlrc4", ident.2 = "WT+", logfc.threshold = 0.1, group.by = "organoid_type", test.use = "wilcox")
+
+mouse_BA_de_genes_GsdmD_vs_WT_infected <- FindMarkers(mouse_BA_filt_norm_prep, assay = "SCT", ident.1 = "GsdmD", ident.2 = "WT+", logfc.threshold = 0.1, group.by = "organoid_type", test.use = "wilcox")
+```
+
+## Save DE genes
+```{r save de genes per organoid, message = FALSE, warning = FALSE}
+saveRDS(mouse_BA_de_genes_WT_infected_vs_WT_not_infected, file = "mouse_BA_de_genes_WT_infected_vs_WT_not_infected.rds")
+
+saveRDS(mouse_BA_de_genes_Nlrc4_vs_WT_not_infected, file = "mouse_BA_de_genes_Nlrc4_vs_WT_not_infected.rds")
+
+saveRDS(mouse_BA_de_genes_GsdmD_vs_WT_not_infected, file = "mouse_BA_de_genes_GsdmD_vs_WT_not_infected.rds")
+
+
+saveRDS(mouse_BA_de_genes_Nlrc4_vs_WT_infected, file = "mouse_BA_de_genes_Nlrc4_vs_WT_infected.rds")
+saveRDS(mouse_BA_de_genes_GsdmD_vs_WT_infected, file = "mouse_BA_de_genes_GsdmD_vs_WT_infected.rds")
+```
+
+## Filter DE genes by adjusted p-value
+
+```{r Filter the significant DE genes: adjusted p value < 0.05, message = FALSE, warning = FALSE}
+
+mouse_BA_de_genes_WT_infected_vs_WT_not_infected_wilcox_p0.05 <- mouse_BA_de_genes_WT_infected_vs_WT_not_infected[which(mouse_BA_de_genes_WT_infected_vs_WT_not_infected$p_val_adj < 0.05),]
+mouse_BA_de_genes_WT_infected_vs_WT_not_infected_wilcox_p0.05
+
+mouse_BA_de_genes_Nlrc4_vs_WT_not_infected_wilcox_p0.05 <- mouse_BA_de_genes_Nlrc4_vs_WT_not_infected[which(mouse_BA_de_genes_Nlrc4_vs_WT_not_infected$p_val_adj < 0.05),]
+
+mouse_BA_de_genes_GsdmD_vs_WT_not_infected_wilcox_p0.05 <- mouse_BA_de_genes_GsdmD_vs_WT_not_infected[which(mouse_BA_de_genes_GsdmD_vs_WT_not_infected$p_val_adj < 0.05),]
+
+mouse_BA_de_genes_Nlrc4_vs_WT_infected_wilcox_p0.05 <- mouse_BA_de_genes_Nlrc4_vs_WT_infected[which(mouse_BA_de_genes_Nlrc4_vs_WT_infected$p_val_adj < 0.05),]
+mouse_BA_de_genes_GsdmD_vs_WT_infected_wilcox_p0.05 <- mouse_BA_de_genes_GsdmD_vs_WT_infected[which(mouse_BA_de_genes_GsdmD_vs_WT_infected$p_val_adj < 0.05),]
+mouse_BA_de_genes_GsdmD_vs_WT_infected_wilcox_p0.05
+
+
+```
+
+
+## Save filtered DE gene lists p val adj > 0.05
+```{r save significant DE genes, message = FALSE, warning = FALSE}
+
+write.xlsx(mouse_BA_de_genes_WT_infected_vs_WT_not_infected_wilcox_p0.05, file = "20240416_seq2_mouse_BA_de_genes_WT_infected_vs_WT_not_infected_wilcox_p0.05.xlsx", colNames=TRUE, rowNames=TRUE)
+
+
+write.xlsx(mouse_BA_de_genes_Nlrc4_vs_WT_not_infected_wilcox_p0.05, file = "20240416_seq2_mouse_BA_de_genes_Nlrc4_vs_WT_not_infected_wilcox_p0.05.xlsx", colNames=TRUE, rowNames=TRUE)
+
+write.xlsx(mouse_BA_de_genes_GsdmD_vs_WT_not_infected_wilcox_p0.05, file = "20240416_seq2_mouse_BA_de_genes_GsdmD_vs_WT_not_infected_wilcox_p0.05.xlsx", colNames=TRUE, rowNames=TRUE)
+
+write.xlsx(mouse_BA_de_genes_Nlrc4_vs_WT_infected_wilcox_p0.05, file = "20240416_seq2_mouse_BA_de_genes_Nlrc4_vs_WT_infected_wilcox_p0.05.xlsx", colNames=TRUE, rowNames=TRUE)
+write.xlsx(mouse_BA_de_genes_GsdmD_vs_WT_infected_wilcox_p0.05, file = "20240416_seq2_mouse_BA_de_genes_GsdmD_vs_WT_infected_wilcox_p0.05.xlsx", colNames=TRUE, rowNames=TRUE)
+```
+
+## Plots
+
+### Volcano Plot of significant DE genes
+
+```{r Volcano plot of significant de genes for eahc organoid, message = FALSE, warning = FALSE}
+
+mouse_BA_de_genes_WT_infected_vs_WT_not_infected = readRDS (file = "mouse_BA_de_genes_WT_infected_vs_WT_not_infected.rds")
+
+#Replace object name and plot title to the corresponding organoid
+#mouse_BA_de_genes_WT_infected_vs_WT_not_infected
+#mouse_BA_de_genes_Nlrc4_vs_WT_not_infected
+#mouse_BA_de_genes_GsdmD_vs_WT_not_infected
+#mouse_BA_de_genes_Nlrc4_vs_WT_infected
+#mouse_BA_de_genes_GsdmD_vs_WT_infected
+
+  # create custom key-value pairs for 'high' and 'low' expression by fold-change
+  # this can be achieved with nested ifelse statements
+  keyvals_WT <- ifelse(
+    mouse_BA_de_genes_WT_infected_vs_WT_not_infected$avg_log2FC < -0.4 & mouse_BA_de_genes_WT_infected_vs_WT_not_infected$p_val_adj < 0.05, 'royalblue',
+      ifelse(mouse_BA_de_genes_WT_infected_vs_WT_not_infected$avg_log2FC > 0.4 & mouse_BA_de_genes_WT_infected_vs_WT_not_infected$p_val_adj < 0.05, "#EE8262",
+        "grey75"))
+  keyvals_WT[is.na(keyvals_WT)] <- "grey75"
+  names(keyvals_WT)[keyvals_WT == "#EE8262"] <- 'Elevated in Wt+ organoid'
+  names(keyvals_WT)[keyvals_WT == "grey75"] <- 'Not significant'
+  names(keyvals_WT)[keyvals_WT == 'royalblue'] <- 'Reduced in Wt+ organoid'
+
+
+volcano_mouse_BA_de_genes_WT_infected_vs_WT_not_infected <- EnhancedVolcano(mouse_BA_de_genes_WT_infected_vs_WT_not_infected,
+      lab = rownames(mouse_BA_de_genes_WT_infected_vs_WT_not_infected),
+      x = "avg_log2FC", 
+      y = "p_val_adj",
+      title = "DE genes of Wt+ vs. WT- organoid (slide BA)",
+      selectLab = rownames(mouse_BA_de_genes_WT_infected_vs_WT_not_infected)[which(names(keyvals_WT) %in% c('Elevated in Wt+ organoid', 'Reduced in Wt+ organoid'))],
+      pCutoff = 0.05,
+      FCcutoff = 0.4,
+      pointSize = 2,
+      labSize = 3,
+      colCustom = keyvals_WT,
+      colAlpha = 1,
+      legendPosition = 'right',
+      legendLabSize = 11,
+      legendIconSize = 2.0,
+      drawConnectors = TRUE, 
+      widthConnectors = 0.1,
+      typeConnectors = "closed", 
+      endsConnectors = "first", 
+      lengthConnectors = unit(0.000001, "npc"),
+      gridlines.minor = FALSE,
+      gridlines.major = FALSE,
+      xlim = c(min(mouse_BA_de_genes_WT_infected_vs_WT_not_infected[["avg_log2FC"]], na.rm = TRUE) - 0.25, max(mouse_BA_de_genes_WT_infected_vs_WT_not_infected[["avg_log2FC"]], na.rm = TRUE))) + xlab("Average log2 fold change")
+
+volcano_mouse_BA_de_genes_WT_infected_vs_WT_not_infected
+      
+
+ggsave(file = paste0("volcano_mouse_BA_de_genes_WT_infected_vs_WT_not_infected_bigger2.pdf"), plot = volcano_mouse_BA_de_genes_WT_infected_vs_WT_not_infected, dpi = 300, width = 10, height =8)
+
+```
+
+## DE genes of interest
+Spatial mapping of these gene counts in original data
+```{r DE genes of interest mapping}
+mouse_no_borders_filt.BA.nfeat = readRDS (file = "mouse_no_borders_filt.BA.nfeat.rds")
+mouse_no_borders_filt.BA.nfeat@meta.data
+
+spatial_data_nfeat <- GetStaffli(mouse_no_borders_filt.BA.nfeat)
+
+#Load H&E images 
+mouse_no_borders_filt.BA.nfeat <- LoadImages(mouse_no_borders_filt.BA.nfeat)
+ImagePlot(mouse_no_borders_filt.BA.nfeat)
+
+cols <- viridis::rocket(11, direction = -1)
+MapFeatures(mouse_no_borders_filt.BA.nfeat, 
+                 features = "Reg3g",
+                 section_number = 1,
+                 label_by = "sample_id",
+                 colors = cols,
+                 slot = "counts")
+
+mouse_BA_filt_norm_prepSCT
+
+cols <- viridis::rocket(11, direction = -1)
+infla_genes <- MapFeatures(mouse_BA_filt_norm_prepSCT, 
+                 features = c("Il18", "Casp1"),
+                 section_number = 1,
+                 label_by = "sample_id",
+                 colors = cols,
+                 slot = "counts")
+infla_genes
+
+ggsave(file = "Figure_2G_dotplot_DE_genes_organoid_types.pdf", plot = DE_genes_dotplot, width = 15, height =5, dpi = 300)
+
+```
+
+
+```{r DE genes dot plot }
+mouse_BA_filt_norm_prepSCT@meta.data
+
+#Remove the NA spots!
+spots_keep_organoid <- colnames(mouse_BA_filt_norm_prepSCT)[!is.na(mouse_BA_filt_norm_prepSCT$organoid_type)]
+spots_keep_organoid
+
+mouse_BA_filt_norm_no_NA <- SubsetSTData(mouse_BA_filt_norm_prepSCT, spots = spots_keep_organoid)
+unique(mouse_BA_filt_norm_no_NA@meta.data$organoid_type)
+mouse_BA_filt_norm_no_NA@meta.data
+
+#Convert the "organoid_type" 'character' column into a 'factor' column for the dot plot
+#class(mouse_BA_filt_norm_no_NA@meta.data$organoid_type)
+#[1] "character"
+mouse_BA_filt_norm_no_NA@meta.data$organoid_type <- factor(
+  mouse_BA_filt_norm_no_NA@meta.data$organoid_type,
+  levels = c("WT+", "WT-", "Nlrc4", "GsdmD"))
+
+#Check the order of the labels in "organoid_type"
+levels(mouse_BA_filt_norm_no_NA@meta.data$organoid_type)
+#Set the correct orger in the dot plot
+mouse_BA_filt_norm_no_NA@meta.data$organoid_type <- factor(
+  mouse_BA_filt_norm_no_NA@meta.data$organoid_type,
+  levels = c("WT-", "WT+", "Nlrc4", "GsdmD")
+)
+
+levels(mouse_BA_filt_norm_no_NA@meta.data$organoid_type)
+
+
+DE_genes_all <- c("Muc3", "Ugt2b34", "Ppa1", "Ppp1r10", 
+                  "Idh1", "Ace2", "Mtus2", "Vdac2")
+
+DE_genes_dotplot <- DotPlot(mouse_BA_filt_norm_no_NA, assay = "SCT", features = DE_genes_all, cols = c("#feebe2", "#7a0177"), group.by = "organoid_type", dot.scale = 10) + RotatedAxis() + scale_x_discrete(labels = DE_genes_all) + scale_y_discrete(labels = c("WT-", "WT+", "Nlrc4", "GsdmD")) + xlab("Mouse DE Genes") + ylab("Organoid Condition")
+
+#DE_genes_Salmo_spots_WT_infected_dotplot
+DE_genes_dotplot
+
+ggsave(file = "Figure_2G_dotplot_DE_genes_organoid_types.pdf", plot = DE_genes_dotplot, width = 15, height =5, dpi = 300)
+
+
+saveRDS(mouse_BA_filt_norm_no_NA, file = "mouse_BA_filt_norm_prepSCT_no_NA_in_organoid_type.rds")
+
+```
+
+
+## Session info
+
+<details>
+
+<summary>
+
+</summary>
+
+```{r}
+sessionInfo()
+Sys.Date()
+Sys.time()
+```

@@ -1,0 +1,187 @@
+---
+title: "Normalisation_SR"
+author: "Sofia Rouot"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output: html_document
+format:
+  html:
+    code-fold: true
+    toc: true
+    number-sections: true
+    theme: spacelab
+    embed-resources: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r load packages, message = FALSE, warning = FALSE}
+  library(semla)
+```
+
+### Read the data
+
+```{r, message = FALSE, warning = FALSE}
+#Mouse filtered, without the high counts from the borders
+mouse_no_borders_filt_to_normalise = readRDS (file = "mouse_no_borders_obj_filt.rds")
+```
+
+## Save Staffli component of filtered seurat objects as rds files before normalisation
+```{r save Staffli component of filtered seurat object before normalisation, message = FALSE, warning = FALSE}
+spatial_data_before_normalisation <- GetStaffli(mouse_no_borders_filt_to_normalise)
+
+mouse_no_borders_filt_to_normalise <- LoadImages(mouse_no_borders_filt_to_normalise)
+ImagePlot(mouse_no_borders_filt_to_normalise)
+
+saveRDS(spatial_data_before_normalisation, file = "spatial_data_before_normalisation.rds")
+```
+
+
+# Normalize with SCTransform
+
+Biological heterogeneity in single-cell RNA-seq data is often confounded by technical factors including sequencing depth. The number of molecules detected in each cell can vary significantly between cells, even within the same celltype. Interpretation of data requires effective pre-processing and normalization to remove this technical variability.
+
+## 1. Separate organoid samples BA and BC
+
+```{r separate organoid samples BA and BC, message = FALSE, warning = FALSE}
+
+mouse_no_borders_filt.unique.names <- unique(mouse_no_borders_filt_to_normalise$sample_id)
+mouse_no_borders_filt.unique.names
+
+mouse_no_borders_filt.list.nfeat <- lapply(mouse_no_borders_filt.unique.names, function(i){SubsetSTData(mouse_no_borders_filt_to_normalise, expression = (sample_id == i))})
+mouse_no_borders_filt.list.nfeat
+
+```
+
+## 2. Normalize each sample object separately, done only on BA for now
+
+This single command replaces NormalizeData(), ScaleData(), and FindVariableFeatures().
+
+Transformed data will be available in the SCT assay, which is set as the default after running sctransform.
+
+```{r normalize each sample object separately, message = FALSE, warning = FALSE}
+#BA sample = [[1]]
+
+mouse_no_borders_filt.list.nfeat[[1]] <- SCTransform(mouse_no_borders_filt.list.nfeat[[1]], assay = "Spatial", vars.to.regress = "nFeature_Spatial", return.only.var.genes = FALSE)
+mouse_no_borders_filt.list.nfeat[[1]]
+```
+
+## 3. Integration Features (if >1 samples used downstream). NOT DONE.
+## Not relevant for current analysis as only sample BA of interest.
+
+Select most variable features to be used for the integration/merging
+
+Prep the SCTransform object for integration/merging
+```{r integrate, message = FALSE, warning = FALSE}
+
+#All genes
+#se_normalised.list.nfeat.integration.features <- SelectIntegrationFeatures(object.list = se_normalised.list.nfeat, nfeatures = 20000)
+
+#saveRDS(se_normalised.list.nfeat.integration.features, file = "se_normalised.list.nfeat.integration.features.rds")
+#length(se_normalised.list.nfeat.integration.features)
+
+#options(future.globals.maxSize = 6000 * 1024^2) as total size (5.79 GiB) exceeded max size.
+#se_normalised.list.nfeat.prepsctint <- PrepSCTIntegration(object.list = se_normalised.list.nfeat, anchor.features = se_normalised.list.nfeat.integration.features, verbose = FALSE)
+
+#saveRDS(se_normalised.list.nfeat.prepsctint, file = "se_normalised.list.nfeat.prepsctint.rds")
+
+
+#Mouse genes
+se_normalised_mouse.list.nfeat.integration.features <- SelectIntegrationFeatures(object.list = se_normalised_mouse.list.nfeat, nfeatures = 20000)
+
+saveRDS(se_normalised_mouse.list.nfeat.integration.features, file = "se_normalised_mouse.list.nfeat.integration.features.rds")
+length(se_normalised_mouse.list.nfeat.integration.features) 
+#3831
+
+se_normalised_mouse.list.nfeat.prepsctint <- PrepSCTIntegration(object.list = se_normalised_mouse.list.nfeat, anchor.features = se_normalised_mouse.list.nfeat.integration.features, verbose = FALSE)
+
+saveRDS(se_normalised_mouse.list.nfeat.prepsctint, file = "se_normalised_mouse.list.nfeat.prepsctint.rds")
+```
+
+## 3bis. Merge samples
+
+Do only if downstream analysis is on both BA and BC
+
+```{r merge normalized objects, message = FALSE, warning = FALSE}
+#All genes
+se_normalised.list.nfeat.merged <- MergeSTData(x = se_normalised.list.nfeat.prepsctint[[1]], y = se_normalised.list.nfeat.prepsctint[2:length(se_normalised.list.nfeat.prepsctint)])
+
+se_normalised.list.nfeat.merged@meta.data
+se_normalised.list.nfeat.merged
+
+#Mouse genes
+se_normalised_mouse.list.nfeat.merged <- MergeSTData(x = se_normalised_mouse.list.nfeat.prepsctint[[1]], y = se_normalised_mouse.list.nfeat.prepsctint[2:length(se_normalised_mouse.list.nfeat.prepsctint)])
+
+se_normalised_mouse.list.nfeat.merged@meta.data
+se_normalised_mouse.list.nfeat.merged
+```
+
+## 4. Save normalized and merged object
+
+```{r save normalized object, message = FALSE, warning = FALSE}
+mouse_no_borders_filt.BA.nfeat <- mouse_no_borders_filt.list.nfeat[[1]]
+saveRDS(mouse_no_borders_filt.BA.nfeat, file = "mouse_no_borders_filt.BA.nfeat.rds")
+```
+
+rm(mouse_no_borders_filt_to_normalise)
+rm(mouse_no_borders_filt.unique.names)
+rm(mouse_no_borders_filt.list.nfeat)
+
+## Map mouse data
+
+```{r, message = FALSE, warning = FALSE}
+library(semla)
+library(ggplot2)
+
+mouse_no_borders_filt.BA.nfeat <- readRDS("mouse_no_borders_filt.BA.nfeat.rds")
+
+spatial_data <- GetStaffli(mouse_no_borders_filt.BA.nfeat)
+
+mouse_no_borders_filt.BA.nfeat <- LoadImages(mouse_no_borders_filt.BA.nfeat)
+ImagePlot(mouse_no_borders_filt.BA.nfeat)
+
+mouse_data_plot <- MapFeaturesSummary(mouse_no_borders_filt.BA.nfeat, features = "nFeature_Spatial", subplot_type = "violin", label_by = "sample_id")
+
+mouse_data_plot
+
+ggsave(file = paste0("mouse_data_plot_BA.pdf"), plot = mouse_data_plot, dpi = 300, width = 10, height =8)
+
+#Without the border filter
+mouse_genes_only_obj <- readRDS("mouse_genes_only_obj.rds")
+
+spatial_data_no_filter <- GetStaffli(mouse_genes_only_obj)
+
+mouse_genes_only_obj <- LoadImages(mouse_genes_only_obj)
+ImagePlot(mouse_genes_only_obj)
+
+mouse_data_plot_no_filt <- MapFeatures(mouse_genes_only_obj, section_number = 1, pt_size = 1.5, features = "nFeature_Spatial", label_by = "sample_id",
+          override_plot_dims = TRUE, add_scalebar = TRUE, 
+          scalebar_gg = scalebar(x = 2000, breaks = 11, highlight_breaks = c(1, 6, 11)),
+          scalebar_position = c(0.79, 0.07), 
+          scalebar_height = 0.07) & labs(fill= "genes per spot")
+
+#labs(fill="UMI counts/spot")
+
+mouse_data_plot_no_filt
+
+ggsave(file = paste0("Figure_2C_mouse_data_plot_BA_no_filt_scale_bar_smaller_spot_size.pdf"), plot = mouse_data_plot_no_filt, dpi = 300, width = 10, height =8)
+
+
+VlnPlot(mouse_genes_only_obj, features = "nFeature_Spatial", group.by = "sample_id", pt.size = 0)
+```
+
+## Session info
+
+<details>
+
+<summary>
+
+</summary>
+
+```{r}
+sessionInfo()
+Sys.Date()
+Sys.time()
+```

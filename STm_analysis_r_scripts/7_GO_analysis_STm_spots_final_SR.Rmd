@@ -1,0 +1,282 @@
+---
+title: "2025_02_21_GO_analysis_Salmo"
+output: html_document
+date: "2025-02-21"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Colocalisation analysis
+
+Read the lists of DE genes from the DEA Salmo+ vs Salmo- spots in each condition
+
+```{r}
+library(openxlsx)
+
+deg_GsdmD <- read.xlsx("seq2_colocalisation_wilcox_mouse_BA_filt_norm_de_genes_GsdmD_p0.05.xlsx")
+deg_Nlrc4 <- read.xlsx("seq2_colocalisation_wilcox_mouse_BA_filt_norm_de_genes_Nlrc4_p0.05.xlsx")
+deg_Wt <- read.xlsx("seq2_colocalisation_wilcox_mouse_BA_filt_norm_de_genes_WT_infected_p0.05.xlsx")
+
+deg_GsdmD$condition <- "GsdmD"
+deg_Nlrc4$condition <- "Nlrc4"
+deg_Wt$condition <- "WT"
+
+deg_all_coloc <- rbind(deg_GsdmD, deg_Nlrc4, deg_Wt)
+colnames(deg_all_coloc) <- c('Gene','p_val','avg_log2FC', 'pct.1', 'pct.2', 'p_val_adj', 'condition')
+
+```
+
+Plot the number of up-genes for each condition in a histogram to compare the conditions
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+
+  # Count the number of upregulated and downregulated genes for all
+  upregulated_genes_GsdmD <- deg_all$Gene[deg_all$avg_log2FC > 0 & deg_all$condition == "GsdmD"]
+  downregulated_genes_GsdmD <- deg_all$Gene[deg_all$avg_log2FC < 0 & deg_all$condition == "GsdmD"]
+  upregulated_count_GsdmD <- length(upregulated_genes_GsdmD ) #4
+  downregulated_count_GsdmD <- length(downregulated_genes_GsdmD ) #0
+  
+  
+deg_summary_coloc <- deg_all_coloc %>%
+  group_by(condition) %>%
+  summarise(
+    Upregulated = sum(avg_log2FC > 0),  # Count of upregulated genes
+    Downregulated = sum(avg_log2FC < 0) # Count of downregulated genes
+  ) %>%
+  pivot_longer(cols = c(Upregulated, Downregulated), 
+               names_to = "Regulation", values_to = "Count")
+
+# View the summary
+print(deg_summary_coloc)
+
+write.xlsx(deg_summary_coloc, file = "BA_mouse_DEG_summary_per_condition_Colocalisation_salmo_vs_salmo_wilcox_p0.05.xlsx", colNames=TRUE, rowNames=TRUE)
+
+
+deg_summary_coloc_per_condition <- deg_all_coloc %>%
+  group_by(condition) %>%
+  summarise(Total_DE_Genes = sum(avg_log2FC != 0))
+
+# View the summary
+print(deg_summary_coloc_per_condition)
+```
+
+```{r}
+p <- ggplot(deg_summary_coloc, aes(x = condition, y = Count, fill = Regulation)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Upregulated and Downregulated Genes in Salmo+ spots per Organoid Condition",
+       x = "Condition",
+       y = "Number of Genes") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Upregulated" = "plum2", "Downregulated" = "skyblue2"))
+
+p
+
+ggsave(file = "BA_up_and_down_DEG_summary_per_condition_Salmo_spots.pdf", plot = p, width = 15, height =5, dpi = 300)
+
+
+q <- ggplot(deg_summary_coloc_per_condition, aes(x = condition, y = Total_DE_Genes, fill = condition)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Total DE Genes in Salmo+ per Organoid Condition",
+       x = "Organoid Condition",
+       y = "Number of DE Genes") +
+  theme_minimal() +
+  scale_fill_manual(values = c("GsdmD" = "violetred4", "Nlrc4" = "violetred4", "WT" = "violetred4")) +
+  theme(legend.position = "none") 
+
+q
+
+ggsave(file = "BA_total_DEG_summary_per_condition_Salmo_spots.pdf", plot = q, width = 15, height =5, dpi = 300)
+
+```
+
+# Figures Fig2.H. Dot plot for Colocalisation S. Tm+ vs S. Tm- spots 
+```{r DE genes dot plot }
+mouse_BA_filt_norm_prepSCT_no_NA_by_organoid_type = readRDS (file = "mouse_BA_filt_norm_prepSCT_no_NA_in_organoid_type.rds")
+mouse_BA_filt_norm_prepSCT_no_NA_by_organoid_type@meta.data
+mouse_BA_filt_norm_prepSCT_no_NA_by_organoid_type
+
+se_BA_mouse_norm <- mouse_BA_filt_norm_prepSCT_no_NA_by_organoid_type
+
+
+unique(se_BA_mouse_norm@meta.data$organoid_type)
+
+#Convert the "organoid_type" 'character' column into a 'factor' column for the dot plot
+#class(mouse_BA_filt_norm_no_NA@meta.data$organoid_type)
+#[1] "character"
+mouse_BA_filt_norm_no_NA@meta.data$organoid_type <- factor(
+  mouse_BA_filt_norm_no_NA@meta.data$organoid_type,
+  levels = c("WT+", "WT-", "Nlrc4", "GsdmD"))
+```
+
+
+```{r DE genes dot plot }
+#Check the order of the labels in "organoid_type"
+levels(se_BA_mouse_norm@meta.data$organoid_type)
+
+#Set the correct orger in the dot plot
+#mouse_BA_filt_norm_no_NA@meta.data$organoid_type <- factor(
+#  mouse_BA_filt_norm_no_NA@meta.data$organoid_type,
+#  levels = c("WT-", "WT+", "Nlrc4", "GsdmD")
+#)
+
+```
+
+
+WT+: Mefv, Nlrp4c, and Fpr-rs4
+```{r DE genes dot plot }
+DE_genes <- c("Mefv", "Nlrp4c", "Fpr-rs4")
+
+DE_genes_Salmo_spots_WT_dotplot <- DotPlot(se_BA_mouse_norm, assay = "SCT", features = DE_genes, cols = c("#feebe2", "#7a0177"), group.by = "Salmo", dot.scale = 10) + RotatedAxis() + scale_x_discrete(labels = DE_genes) + scale_y_discrete(labels = expression("Salmo" ^ "-", "Salmo" ^ "+")) + xlab("Mouse DE Genes") + ylab("WT+ Condition")
+
+DE_genes_Salmo_spots_WT_dotplot
+```
+
+Nlrc4: Anxa1, Cul3, Il1rn, Tnf
+```{r DE genes dot plot }
+DE_genes_Nlrc4 <- c("Anxa1", "Cul3", "Il1rn", "Tnf")
+
+DE_genes_Salmo_spots_Nlrc4_dotplot <- DotPlot(se_BA_mouse_norm, assay = "SCT", features = DE_genes_Nlrc4, cols = c("#feebe2", "#7a0177"), group.by = "Salmo", dot.scale = 10) + RotatedAxis() + scale_x_discrete(labels = DE_genes_Nlrc4) + scale_y_discrete(labels = expression("Salmo" ^ "-", "Salmo" ^ "+")) + xlab("Mouse DE Genes") + ylab("Nlrc4-/- Condition")
+
+DE_genes_Salmo_spots_Nlrc4_dotplot
+```
+```{r}
+DE_genes_all <- c("Mefv", "Nlrp4c", "Fpr-rs4", "Anxa1", "Cul3", "Il1rn", "Tnf")
+
+DE_genes_Salmo_spots_dotplot <- DotPlot(se_BA_mouse_norm, assay = "SCT", features = DE_genes_all, cols = c("#feebe2", "#7a0177"), group.by = "Salmo", dot.scale = 10) + RotatedAxis() + scale_x_discrete(labels = DE_genes_all) + scale_y_discrete(labels = expression("Salmo" ^ "-", "Salmo" ^ "+")) + xlab("Mouse DE Genes") + ylab("WT+ Condition")
+
+DE_genes_Salmo_spots_dotplot
+```
+
+width = 15, height =5,
+```{r save dotplots }
+
+ggsave(file = "fig2G_dotplot_DE_genes_WT_infected.pdf", plot = DE_genes_Salmo_spots_WT_dotplot, width = 7, height =4, dpi = 300)
+
+ggsave(file = "fig2H_dotplot_DE_genes_Nlrc4_infected_20250422.pdf", plot = DE_genes_Salmo_spots_Nlrc4_dotplot, width = 7, height =4, dpi = 300)
+
+
+```
+
+# Fig 2.H. Spatial plots 
+WT+: c("Mefv", "Nlrp4c", "Fpr-rs4")
+```{r}
+cols <- viridis::rocket(11, direction = -1)
+MapFeatures(se_BA_mouse_norm, 
+                 features = "Mefv",
+                 label_by = "sample_id",
+                 colors = cols,
+                 slot = "counts")
+
+MapFeatures(se_BA_mouse_norm, 
+                 features = "Salmo",
+                 label_by = "sample_id",
+                 colors = cols,
+                 slot = "counts")
+
+p_WT <- MapFeatures(se_BA_mouse_norm, 
+                        features = c("Salmo", "Mefv", "Nlrp4c", "Fpr-rs4"), label_by = "sample_id",
+                        slot = "counts",
+                        pt_size = 1,
+                        crop_area = c(0.2, 0.48, 0.46, 0.87), add_scalebar = TRUE,
+                 scalebar_gg = scalebar(x = 1000),
+                 scalebar_position = c(0.74, 0.04), 
+                 scalebar_height = 0.07) 
+p_WT
+
+p_WT_zoom_in <- MapFeatures(se_BA_mouse_norm, 
+                      features = c("Salmo", "Mefv", "Nlrp4c", "Fpr-rs4"),
+                      slot = "counts",
+                      pt_size = 5, 
+                      label_by = "sample_id", 
+                      crop_area = c(0.23, 0.48, 0.3, 0.58),add_scalebar = TRUE,
+                 scalebar_gg = scalebar(x = 200),
+                 scalebar_position = c(0.75, 0.02), 
+                 scalebar_height = 0.07) 
+p_WT_zoom_in
+ (p_WT / p_WT_zoom_in)
+
+```
+
+&
+  theme(plot.title = element_blank(), 
+        plot.subtitle = element_blank(), 
+        legend.position = "none")
+
+In Nlrc4 organoid 
+Nlrc4: Anxa1, Cul3, Il1rn, Tnf
+legend.position = "right",
+```{r}
+p_Nlrc4 <- MapFeatures(se_BA_mouse_norm, 
+                        features = c("Salmo", "Anxa1"), label_by = "sample_id",
+                        slot = "counts",max_cutoff = 0.99,
+                        pt_size = 1,
+                        crop_area = c(0.45, 0.1, 1, 0.5), add_scalebar = TRUE,
+                 scalebar_gg = scalebar(x = 1000),
+                 scalebar_position = c(0.44, 0.04), 
+                 scalebar_height = 0.07) &  
+        labs(fill="UMI counts/spot") &
+        theme( 
+        legend.text = element_text(angle = 0),
+        legend.margin = margin(t = 50, r = 0, b = 100, l = 0))
+p_Nlrc4
+
+```
+```{r}
+p_Nlrc4_part2 <- MapFeatures(se_BA_mouse_norm, 
+                        features = c("Cul3", "Il1rn", "Tnf"), label_by = "sample_id",
+                        slot = "counts",max_cutoff = 0.99,
+                        pt_size = 1,
+                        crop_area = c(0.45, 0.1, 1, 0.5), add_scalebar = TRUE,
+                 scalebar_gg = scalebar(x = 1000),
+                 scalebar_position = c(0.54, 0.04), 
+                 scalebar_height = 0.07) &  
+        labs(fill="UMI counts/spot") &
+        theme(legend.position = "right", 
+        legend.text = element_text(angle = 0),
+        legend.margin = margin(t = 50, r = 0, b = 100, l = 0))
+p_Nlrc4_part2
+```
+
+```{r}
+ggsave(file = "fig2G_spatial_DE_genes_Nlrc4_infected_max_cutoff_0.99.pdf", plot = p_Nlrc4, width = 13, height =10, dpi = 300)
+
+ggsave(file = "fig2G_spatial_DE_genes_Nlrc4_infected_max_cutoff_0.99_part2.pdf", plot = p_Nlrc4_part2, width = 13, height =10, dpi = 300)
+```
+
+
+```{r}
+genes_to_plot <- c("Salmo", "Anxa1", "Cul3", "Il1rn", "Tnf")
+
+plot_list <- lapply(genes_to_plot, function(g){
+  MapFeaturesSummary(se_BA_mouse_norm,
+                     features = g, 
+                     subplot_type = "density", 
+                     pt_size = 0.8,
+                     colors = cols,
+                     crop_area = c(0.45, 0.1, 1, 0.5), add_scalebar = TRUE,
+                 scalebar_gg = scalebar(x = 1000),
+                 scalebar_position = c(0.74, 0.04))
+})
+wrap_plots(plot_list, nrow = 2)
+```
+
+not done
+```{r}
+p_Nlrc4_zoom_in <- MapFeatures(se_BA_mouse_norm, 
+                      features = c("Salmo", "Mefv", "Nlrp4c", "Fpr-rs4"),
+                      slot = "counts",
+                      pt_size = 5, 
+                      label_by = "sample_id", 
+                      crop_area = c(0.23, 0.48, 0.3, 0.58),add_scalebar = TRUE,
+                 scalebar_gg = scalebar(x = 200),
+                 scalebar_position = c(0.75, 0.02), 
+                 scalebar_height = 0.07) 
+p_Nlrc4_zoom_in
+
+
+```
+

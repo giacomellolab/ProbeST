@@ -1,0 +1,549 @@
+---
+title: "GO_analysis_DEA_organoid_conditions_SR"
+output: html_document
+date: "2025-02-21"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Plot histograms of number of total significant DEGs and number of UP- vs DOWN-regulated genes for each DEA. 
+
+Read the lists of DE genes from the DEAs
+```{r}
+library(openxlsx)
+
+deg_GsdmD_vs_WT_not_infected <- read.xlsx("20240416_seq2_mouse_BA_de_genes_GsdmD_vs_WT_not_infected_wilcox_p0.05.xlsx")
+deg_GsdmD_vs_WT_infected <- read.xlsx("20240416_seq2_mouse_BA_de_genes_GsdmD_vs_WT_infected_wilcox_p0.05.xlsx")
+deg_Nlrc4_vs_WT_not_infected <- read.xlsx("20240416_seq2_mouse_BA_de_genes_Nlrc4_vs_WT_not_infected_wilcox_p0.05.xlsx")
+deg_Nlrc4_vs_WT_infected <- read.xlsx("20240416_seq2_mouse_BA_de_genes_Nlrc4_vs_WT_infected_wilcox_p0.05.xlsx")
+deg_WT_infected_vs_WT_not_infected <- read.xlsx("20240416_seq2_mouse_BA_de_genes_WT_infected_vs_WT_not_infected_wilcox_p0.05.xlsx")
+
+
+deg_GsdmD_vs_WT_not_infected$condition <- "GsdmD vs WT-"
+deg_GsdmD_vs_WT_infected$condition <- "GsdmD vs WT+"
+deg_Nlrc4_vs_WT_not_infected$condition <- "Nlrc4 vs WT-"
+deg_Nlrc4_vs_WT_infected$condition <- "Nlrc4 vs WT+"
+deg_WT_infected_vs_WT_not_infected$condition <- "WT+ vs WT-"
+
+deg_all <- rbind(deg_WT_infected_vs_WT_not_infected, deg_GsdmD_vs_WT_not_infected, deg_GsdmD_vs_WT_infected, deg_Nlrc4_vs_WT_not_infected, deg_Nlrc4_vs_WT_infected)
+colnames(deg_all) <- c('Gene','p_val','avg_log2FC', 'pct.1', 'pct.2', 'p_val_adj', 'condition')
+
+```
+
+
+Plot the number of up-genes for each condition in a histogram to compare the conditions
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+
+  # Count the number of upregulated and downregulated genes for all
+  upregulated_genes_GsdmD <- deg_all$Gene[deg_all$avg_log2FC > 0 & deg_all$condition == "GsdmD"]
+  downregulated_genes_GsdmD <- deg_all$Gene[deg_all$avg_log2FC < 0 & deg_all$condition == "GsdmD"]
+  upregulated_count_GsdmD <- length(upregulated_genes_GsdmD ) #4
+  downregulated_count_GsdmD <- length(downregulated_genes_GsdmD ) #0
+  
+  
+deg_summary <- deg_all %>%
+  group_by(condition) %>%
+  summarise(
+    Upregulated = sum(avg_log2FC > 0),  # Count of upregulated genes
+    Downregulated = sum(avg_log2FC < 0) # Count of downregulated genes
+  ) %>%
+  pivot_longer(cols = c(Upregulated, Downregulated), 
+               names_to = "Regulation", values_to = "Count")
+
+# View the summary
+print(deg_summary)
+
+write.xlsx(deg_summary, file = "BA_mouse_DEG_summary_per_condition_per_organoid_type_wilcox_p0.05.xlsx", colNames=TRUE, rowNames=TRUE)
+
+
+deg_summary_per_condition <- deg_all %>%
+  group_by(condition) %>%
+  summarise(Total_DE_Genes = sum(avg_log2FC != 0))
+
+# View the summary
+print(deg_summary_per_condition)
+```
+
+```{r}
+p <- ggplot(deg_summary, aes(x = condition, y = Count, fill = Regulation)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Upregulated and Downregulated Genes between organoid conditions",
+       x = "Condition",
+       y = "Number of Genes") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Upregulated" = "plum2", "Downregulated" = "skyblue2"))
+
+p
+
+ggsave(file = "BA_up_and_down_DEG_summary_between_organoid_conditions.pdf", plot = p, width = 15, height =5, dpi = 300)
+```
+
+
+```{r}
+deg_summary_per_condition <- read.xlsx("BA_mouse_DEG_summary_per_condition_perorganoid_type_wilcox_p0.05.xlsx")
+
+deg_summary_per_condition <- deg_summary_per_condition %>%
+  group_by(condition) %>%
+  summarise(Total_DE_Genes = sum(Count))
+
+# View the summary
+print(deg_summary_per_condition)
+
+write.xlsx(deg_summary_per_condition, file = "BA_mouse_total_DEG_summary_per_condition_per_organoid_type_wilcox_p0.05.xlsx", colNames=TRUE, rowNames=TRUE)
+```
+
+
+```{r}
+#Place in desired order for the plotting
+deg_summary_per_condition$condition <- factor(deg_summary_per_condition$condition, 
+                                 levels = c("WT+ vs WT-", "Nlrc4 vs WT+", "Nlrc4 vs WT-", "GsdmD vs WT+", "GsdmD vs WT-"))  # Your desired order
+
+q <- ggplot(deg_summary_per_condition, aes(x = condition, y = Total_DE_Genes, fill = condition)) +
+  geom_bar(stat = "identity", alpha = 1) +
+  labs(title = "Total DE Genes between organoid conditions",
+       x = "Organoid Conditions compared",
+       y = "Number of DE Genes") +
+  geom_text(aes(label=Total_DE_Genes), vjust=-0.5, color="black", size=2.5) +
+  theme_minimal() +
+  theme(axis.text.y = element_text(hjust = 1, color = "black"),
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        axis.ticks = element_line(color = "black"),
+        axis.line = element_line(color = "black"),
+        plot.title = element_text(hjust = 0.5),
+        panel.background = element_blank(),  # Remove panel background
+        axis.ticks.length = unit(0.25, "cm"),  # Adjust the length of the tick marks if needed
+        axis.text.x = element_text(color = "black")) +
+  scale_fill_manual(values = c("GsdmD vs WT+" = "plum2", "GsdmD vs WT-" = "plum3", "Nlrc4 vs WT+" = "skyblue2", "Nlrc4 vs WT-" = "skyblue3", "WT+ vs WT-" = "slateblue3"))
+
+q
+
+ggsave(file = "fig2F_BA_total_DEG_summary_between_organoid_conditions_v3.pdf", plot = q, width = 8, dpi = 300)
+
+```
+
+
+
+# GO analysis
+
+Load libraries
+```{r libraries-load, eval=TRUE}
+
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(enrichR)
+})
+
+```
+
+#load the dataset
+
+```{r message=FALSE, warning=FALSE, eval=FALSE}
+
+#load the different DEG
+degs_WT_infected_WT <- readRDS("mouse_BA_de_genes_WT_infected_vs_WT_not_infected.rds")
+degs_GsdmD_WT_not_infected <- readRDS("mouse_BA_de_genes_GsdmD_vs_WT_not_infected.rds")
+degs_GsdmD_WT_infected <- readRDS("mouse_BA_de_genes_GsdmD_vs_WT_infected.rds")
+degs_Nlrc4_WT_not_infected <- readRDS("mouse_BA_de_genes_Nlrc4_vs_WT_not_infected.rds")
+degs_Nlrc4_WT_infected <- readRDS("mouse_BA_de_genes_Nlrc4_vs_WT_infected.rds")
+
+degs_GsdmD_WT_not_infected$condition <- "GsdmD_WT_not_infected"
+degs_GsdmD_WT_infected$condition <- "GsdmD_WT_infected"
+degs_Nlrc4_WT_not_infected$condition <- "Nlrc4_WT_not_infected"
+degs_Nlrc4_WT_infected$condition <- "Nlrc4_WT_infected"
+degs_WT_infected_WT$condition <- "WT_infected"
+
+
+degs_organoid_all <- rbind(degs_GsdmD_WT_not_infected, degs_GsdmD_WT_infected, degs_Nlrc4_WT_not_infected, degs_Nlrc4_WT_infected, degs_WT_infected_WT)
+degs_organoid_all <- tibble::rownames_to_column(degs_organoid_all, var = "Gene")
+
+```
+
+#FINAL ONE
+```{r}
+library(ggplot2)
+
+# Define the sample name
+sample_name <- "BA_organoid_DEGs"
+
+# Directory to save output files
+base_dir <- "GO_analysis_enrichR_20250304/final_20250324" 
+
+# Create directories for organized outputs
+all_csv_dir <- file.path(base_dir, paste0(sample_name, "_all_csv"))
+top20_dir <- file.path(base_dir, paste0(sample_name, "_top20"))
+significant_dir <- file.path(base_dir, paste0(sample_name, "_significant"))
+
+dir.create(all_csv_dir, showWarnings = FALSE)
+dir.create(top20_dir, showWarnings = FALSE)
+dir.create(significant_dir, showWarnings = FALSE)
+
+# Initialize an empty summary table for DEG counts across clusters
+deg_summary_organoids <- data.frame(Organoid = integer(), Upregulated = integer(), Downregulated = integer())
+
+# Define the databases for enrichment
+databases <- c("GO_Biological_Process_2023", "KEGG_2021_Mouse", "GO_Molecular_Function_2023")
+
+# Helper function to save enrichment table with specified columns
+save_enrichment_table_csv <- function(data, filename) {
+  if (!("Adjusted.P.value" %in% colnames(data)) || !("Overlap" %in% colnames(data)) || !("Genes" %in% colnames(data))) {
+    stop("Required columns (Adjusted.P.value, Overlap, Genes) are missing in the enrichment results.")
+  }
+  
+  data$log10Padj <- -log10(data$Adjusted.P.value)
+  top_20 <- data[1:20, c("Term", "Overlap", "Adjusted.P.value", "log10Padj", "Genes")]
+  write.csv(top_20, file.path(all_csv_dir, filename), row.names = FALSE)
+}
+
+# Helper function to plot enrichment results
+plot_enrichment <- function(data, title, filename, dir, only_significant = FALSE) {
+  if (only_significant) {
+    data <- data[!is.na(data$Adjusted.P.value) & data$Adjusted.P.value < 0.05, ]
+  }
+  
+  if (nrow(data) > 0) {  # Only proceed if there are rows to plot
+    # Split the title into three rows for better readability
+    formatted_title <- paste(strwrap(title, width = 30), collapse = "\n")
+    
+    p <- ggplot(data, aes(x = reorder(Term, -Adjusted.P.value), y = -log10(Adjusted.P.value))) +
+      geom_bar(stat = "identity", fill = ifelse(grepl("Upregulated", title), "red", "blue"), alpha = 0.7) +
+      coord_flip() +
+      labs(title = formatted_title, x = "Term", y = "-log10(Adjusted P-value)") +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(size = 12, hjust = 0.5), 
+        axis.text.y = element_text(size = 8)
+      )
+    ggsave(file.path(dir, filename), plot = p, device = "pdf", width = 8, height = 6)
+  } else {
+    message("No significant terms to plot for ", title)
+  }
+}
+
+# Get the unique conditions in the dataset
+unique_conditions <- unique(degs_organoid_all$condition)
+```
+
+
+```{r}
+# Loop over each cluster in the list of DEGs
+for (cond in unique_conditions) {
+  # Subset data for the current condition
+  condition_data <- degs_organoid_all[degs_organoid_all$condition == cond, ]
+  # Count the number of upregulated and downregulated genes
+  upregulated_genes <- condition_data$Gene[condition_data$avg_log2FC > 0]
+  downregulated_genes <- condition_data$Gene[condition_data$avg_log2FC < 0]
+  upregulated_count <- length(upregulated_genes)
+  downregulated_count <- length(downregulated_genes)
+  
+
+  # Create a summary data frame 
+  #deg_organoid_all_summary <- data.frame(
+  #  Organoid = "WT_infected",
+  #  Upregulated = upregulated_count,
+  #  Downregulated = downregulated_count)
+  
+  deg_summary_organoids <- rbind(deg_summary_organoids, data.frame(
+    Organoid = cond,
+    Upregulated = upregulated_count,
+    Downregulated = downregulated_count
+  ))
+ 
+
+  # Enrichment analysis and plotting for upregulated genes
+  if (upregulated_count > 0) {
+    enrichr_results_up <- enrichr(upregulated_genes, databases)
+    
+    # GO Biological Processes for upregulated genes
+    if (!is.null(enrichr_results_up[["GO_Biological_Process_2023"]])) {
+      go_up <- enrichr_results_up[["GO_Biological_Process_2023"]]
+      go_up <- go_up[order(go_up$Adjusted.P.value), ][1:20, ]  # Top 10 terms
+      save_enrichment_table_csv(go_up, paste0("GO_Biological_Processes_Upregulated_Condition", cond, "_", sample_name, ".csv"))
+      plot_enrichment(go_up, paste("GO Biological Processes for Upregulated Genes - Condition", cond, "_", sample_name),
+                      paste0("Top_20_GO_Biological_Processes_for_Upregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = top20_dir)
+      # Plot significant only if there are significant terms
+      plot_enrichment(go_up, paste("Significant GO Biological Processes for Upregulated Genes_Condition_", cond, "_", sample_name),
+                      paste0("Significant_GO_Biological_Processes_for_Upregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = significant_dir, only_significant = TRUE)
+    }
+
+    # KEGG pathways for upregulated genes
+    if (!is.null(enrichr_results_up[["KEGG_2021_Mouse"]])) {
+      kegg_up <- enrichr_results_up[["KEGG_2021_Mouse"]]
+      kegg_up <- kegg_up[order(kegg_up$Adjusted.P.value), ][1:20, ]  # Top 10 terms
+      save_enrichment_table_csv(kegg_up, paste0("KEGG_Pathways_Upregulated_Condition_", cond, "_", sample_name, ".csv"))
+      plot_enrichment(kegg_up, paste("KEGG Pathways for Upregulated Genes - Condition_", cond, "_", sample_name),
+                      paste0("Top_20_KEGG_Pathways_for_Upregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = top20_dir)
+      # Plot significant only if there are significant terms
+      plot_enrichment(kegg_up, paste("Significant KEGG Pathways for Upregulated Genes_Condition_", cond, "_", sample_name),
+                      paste0("Significant_KEGG_Pathways_for_Upregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = significant_dir, only_significant = TRUE)
+    }
+    
+    # Molecular functions for upregulated genes
+    if (!is.null(enrichr_results_up[["GO_Molecular_Function_2023"]])) {
+      mol_up <- enrichr_results_up[["GO_Molecular_Function_2023"]]
+      mol_up <- mol_up[order(mol_up$Adjusted.P.value), ][1:20, ]  # Top 10 terms
+      save_enrichment_table_csv(mol_up, paste0("GO_Molecular_Function_Upregulated_Condition_", cond, "_", sample_name, ".csv"))
+      plot_enrichment(mol_up, paste("Molecular Functions for Upregulated Genes - Condition_", cond, "_", sample_name),
+                      paste0("Top_20_Molecular_Functions_for_Upregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = top20_dir)
+      # Plot significant only if there are significant terms
+      plot_enrichment(mol_up, paste("Significant GO Molecular Functions for Upregulated Genes_Condition_", cond, "_", sample_name),
+                      paste0("Significant_GO_Molecular_Functions_for_Upregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = significant_dir, only_significant = TRUE)
+    }
+    
+  }
+
+  # Enrichment analysis and plotting for downregulated genes
+  if (downregulated_count > 0) {
+    enrichr_results_down <- enrichr(downregulated_genes, databases)
+    
+    # GO Biological Processes for downregulated genes
+    if (!is.null(enrichr_results_down[["GO_Biological_Process_2023"]])) {
+      go_down <- enrichr_results_down[["GO_Biological_Process_2023"]]
+      go_down <- go_down[order(go_down$Adjusted.P.value), ][1:20, ]  # Top 10 terms
+      save_enrichment_table_csv(go_down, paste0("GO_Biological_Processes_Downregulated_Condition_", cond, "_", sample_name, ".csv"))
+      plot_enrichment(go_down, paste("GO Biological Processes for Downregulated Genes_Condition_", cond, "_", sample_name), paste0("Top_20_GO_Biological_Processes_for_Downregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = top20_dir)
+      # Plot significant only if there are significant terms
+      plot_enrichment(go_down, paste("Significant GO Biological Processes for Downregulated Genes_Condition_", cond, "_", sample_name),
+                      paste0("Significant_GO_Biological_Processes_for_Downregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = significant_dir, only_significant = TRUE)
+    }
+
+    # KEGG pathways for downregulated genes
+    if (!is.null(enrichr_results_down[["KEGG_2021_Mouse"]])) {
+      kegg_down <- enrichr_results_down[["KEGG_2021_Mouse"]]
+      kegg_down <- kegg_down[order(kegg_down$Adjusted.P.value), ][1:20, ]  # Top 10 terms
+      save_enrichment_table_csv(kegg_down, paste0("KEGG_Pathways_Downregulated_Condition_", cond, "_", sample_name, ".csv"))
+      plot_enrichment(kegg_down, paste("KEGG Pathways for Downregulated Genes_Condition_", cond, "_", sample_name),
+                      paste0("Top_20_KEGG_Pathways_for_Downregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = top20_dir)
+      # Plot significant only if there are significant terms
+      plot_enrichment(kegg_down, paste("Significant KEGG Pathways for Downregulated Genes_Condition_", cond, "_", sample_name),
+                      paste0("Significant_KEGG_Pathways_for_Downregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = significant_dir, only_significant = TRUE)
+    }
+    
+    # Molecular functions for downregulated genes
+    if (!is.null(enrichr_results_down[["GO_Molecular_Function_2023"]])) {
+      mol_down <- enrichr_results_down[["GO_Molecular_Function_2023"]]
+      mol_down <- mol_down[order(mol_down$Adjusted.P.value), ][1:20, ]  # Top 10 terms
+      save_enrichment_table_csv(mol_down, paste0("GO_Molecular_Function_Downregulated_Condition_", cond, "_", sample_name, ".csv"))
+      plot_enrichment(mol_down, paste("Molecular Functions for Downregulated Genes - Condition_", cond, "_", sample_name),
+                      paste0("Top_20_Molecular_Functions_for_Downregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = top20_dir)
+      # Plot significant only if there are significant terms
+      plot_enrichment(mol_down, paste("Significant GO Molecular Functions for Downregulated Genes_Condition_", cond, "_", sample_name),
+                      paste0("Significant_GO_Molecular_Functions_for_Downregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = significant_dir, only_significant = TRUE)
+    }
+  }
+}
+
+# Save the DEG summary table as CSV in the all CSV directory
+write.csv(deg_summary_organoids, file.path(all_csv_dir, paste0("DEG_Summary_All_Conditions_", sample_name, ".csv")), row.names = FALSE)
+
+```
+
+```{r Plots}
+library("reshape2")
+
+summary_data_for_plot <- melt(deg_summary_organoids, id.vars = "Organoid", variable.name = "Regulation", value.name = "Count")
+
+plot <- ggplot(summary_data_for_plot, aes(x = Organoid, y = Count, fill = Regulation)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_minimal() +
+  labs(title = "Upregulated vs Downregulated Genes", 
+       x = "Organoid Condition", 
+       y = "Number of DE genes") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+plot
+
+ggsave(file = "BA_DEG_summary_up_down_per_condition_20250304.pdf", plot = plot, width = 15, height =5, dpi = 300)
+```
+
+
+
+#GO for final plots 
+```{r}
+library(ggplot2)
+
+# Define the sample name
+sample_name <- "BA_organoid_DEGs"
+
+# Directory to save output files
+base_dir <- "GO_analysis_enrichR_20250304/final_20250422" 
+
+# Create directories for organized outputs
+all_csv_dir <- file.path(base_dir, paste0(sample_name, "_all_csv"))
+top20_dir <- file.path(base_dir, paste0(sample_name, "_top20"))
+significant_dir <- file.path(base_dir, paste0(sample_name, "_significant"))
+
+dir.create(all_csv_dir, showWarnings = FALSE)
+dir.create(top20_dir, showWarnings = FALSE)
+dir.create(significant_dir, showWarnings = FALSE)
+
+# Initialize an empty summary table for DEG counts across clusters
+deg_summary_organoids <- data.frame(Organoid = integer(), Upregulated = integer(), Downregulated = integer())
+
+# Define the databases for enrichment
+databases <- c("GO_Biological_Process_2023", "KEGG_2021_Mouse", "GO_Molecular_Function_2023")
+
+# Helper function to save enrichment table with specified columns
+save_enrichment_table_csv <- function(data, filename) {
+  if (!("Adjusted.P.value" %in% colnames(data)) || !("Overlap" %in% colnames(data)) || !("Genes" %in% colnames(data))) {
+    stop("Required columns (Adjusted.P.value, Overlap, Genes) are missing in the enrichment results.")
+  }
+  
+  data$log10Padj <- -log10(data$Adjusted.P.value)
+  top_20 <- data[1:20, c("Term", "Overlap", "Adjusted.P.value", "log10Padj", "Genes")]
+  write.csv(top_20, file.path(all_csv_dir, filename), row.names = FALSE)
+}
+
+# Helper function to plot enrichment results
+plot_enrichment <- function(data, title, filename, dir, only_significant = FALSE) {
+  if (only_significant) {
+    data <- data[!is.na(data$Adjusted.P.value) & data$Adjusted.P.value < 0.05, ]
+  }
+  
+  if (nrow(data) > 0) {  # Only proceed if there are rows to plot
+    # Split the title into three rows for better readability
+    formatted_title <- paste(strwrap(title, width = 30), collapse = "\n")
+    
+    p <- ggplot(data, aes(x = reorder(Term, -Adjusted.P.value), y = -log10(Adjusted.P.value))) +
+      geom_bar(stat = "identity", fill = ifelse(grepl("Upregulated", title), "plum2", "skyblue2"), alpha = 0.7) +
+      coord_flip() +
+      labs(title = formatted_title, x = "Term", y = "-log10(Adjusted P-value)") +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(size = 10, hjust = 0.5), 
+        axis.text.y = element_text(size = 8)
+      )
+    ggsave(file.path(dir, filename), plot = p, device = "pdf", width = 9, height = 6)
+  } else {
+    message("No significant terms to plot for ", title)
+  }
+}
+
+# Get the unique conditions in the dataset
+unique_conditions <- unique(degs_organoid_all$condition)
+```
+
+
+```{r}
+# Loop over each cluster in the list of DEGs
+for (cond in unique_conditions) {
+  # Subset data for the current condition
+  condition_data <- degs_organoid_all[degs_organoid_all$condition == cond, ]
+  # Count the number of upregulated and downregulated genes
+  upregulated_genes <- condition_data$Gene[condition_data$avg_log2FC > 0]
+  downregulated_genes <- condition_data$Gene[condition_data$avg_log2FC < 0]
+  upregulated_count <- length(upregulated_genes)
+  downregulated_count <- length(downregulated_genes)
+  
+
+  # Create a summary data frame 
+  #deg_organoid_all_summary <- data.frame(
+  #  Organoid = "WT_infected",
+  #  Upregulated = upregulated_count,
+  #  Downregulated = downregulated_count)
+  
+  deg_summary_organoids <- rbind(deg_summary_organoids, data.frame(
+    Organoid = cond,
+    Upregulated = upregulated_count,
+    Downregulated = downregulated_count
+  ))
+ 
+
+  # Enrichment analysis and plotting for upregulated genes
+  if (upregulated_count > 0) {
+    enrichr_results_up <- enrichr(upregulated_genes, databases)
+    
+    # GO Biological Processes for upregulated genes
+    if (!is.null(enrichr_results_up[["GO_Biological_Process_2023"]])) {
+      go_up <- enrichr_results_up[["GO_Biological_Process_2023"]]
+      go_up <- go_up[order(go_up$Adjusted.P.value), ][1:20, ]  # Top 10 terms
+      save_enrichment_table_csv(go_up, paste0("GO_Biological_Processes_Upregulated_Condition", cond, "_", sample_name, ".csv"))
+      plot_enrichment(go_up, paste("GO Biological Processes for Upregulated Genes - Condition", cond),
+                      paste0("Top_20_GO_Biological_Processes_for_Upregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = top20_dir)
+      # Plot significant only if there are significant terms
+      plot_enrichment(go_up, paste("Significant GO Biological Processes for Upregulated Genes_Condition_", cond, "_", sample_name),
+                      paste0("Significant_GO_Biological_Processes_for_Upregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = significant_dir, only_significant = TRUE)
+    }
+
+    # KEGG pathways for upregulated genes
+    if (!is.null(enrichr_results_up[["KEGG_2021_Mouse"]])) {
+      kegg_up <- enrichr_results_up[["KEGG_2021_Mouse"]]
+      kegg_up <- kegg_up[order(kegg_up$Adjusted.P.value), ][1:20, ]  # Top 10 terms
+      save_enrichment_table_csv(kegg_up, paste0("KEGG_Pathways_Upregulated_Condition_", cond, "_", sample_name, ".csv"))
+      plot_enrichment(kegg_up, paste("KEGG Pathways for Upregulated Genes - Condition_", cond),
+                      paste0("Top_20_KEGG_Pathways_for_Upregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = top20_dir)
+      # Plot significant only if there are significant terms
+      plot_enrichment(kegg_up, paste("Significant KEGG Pathways for Upregulated Genes_Condition_", cond, "_", sample_name),
+                      paste0("Significant_KEGG_Pathways_for_Upregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = significant_dir, only_significant = TRUE)
+    }
+    
+    # Molecular functions for upregulated genes
+    if (!is.null(enrichr_results_up[["GO_Molecular_Function_2023"]])) {
+      mol_up <- enrichr_results_up[["GO_Molecular_Function_2023"]]
+      mol_up <- mol_up[order(mol_up$Adjusted.P.value), ][1:20, ]  # Top 10 terms
+      save_enrichment_table_csv(mol_up, paste0("GO_Molecular_Function_Upregulated_Condition_", cond, "_", sample_name, ".csv"))
+      plot_enrichment(mol_up, paste("Molecular Functions for Upregulated Genes - Condition_", cond),
+                      paste0("Top_20_Molecular_Functions_for_Upregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = top20_dir)
+      # Plot significant only if there are significant terms
+      plot_enrichment(mol_up, paste("Significant GO Molecular Functions for Upregulated Genes_Condition_", cond, "_", sample_name),
+                      paste0("Significant_GO_Molecular_Functions_for_Upregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = significant_dir, only_significant = TRUE)
+    }
+    
+  }
+
+  # Enrichment analysis and plotting for downregulated genes
+  if (downregulated_count > 0) {
+    enrichr_results_down <- enrichr(downregulated_genes, databases)
+    
+    # GO Biological Processes for downregulated genes
+    if (!is.null(enrichr_results_down[["GO_Biological_Process_2023"]])) {
+      go_down <- enrichr_results_down[["GO_Biological_Process_2023"]]
+      go_down <- go_down[order(go_down$Adjusted.P.value), ][1:20, ]  # Top 10 terms
+      save_enrichment_table_csv(go_down, paste0("GO_Biological_Processes_Downregulated_Condition_", cond, "_", sample_name, ".csv"))
+      plot_enrichment(go_down, paste("GO Biological Processes for Downregulated Genes_Condition_", cond), paste0("Top_20_GO_Biological_Processes_for_Downregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = top20_dir)
+      # Plot significant only if there are significant terms
+      plot_enrichment(go_down, paste("Significant GO Biological Processes for Downregulated Genes_Condition_", cond, "_", sample_name),
+                      paste0("Significant_GO_Biological_Processes_for_Downregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = significant_dir, only_significant = TRUE)
+    }
+
+    # KEGG pathways for downregulated genes
+    if (!is.null(enrichr_results_down[["KEGG_2021_Mouse"]])) {
+      kegg_down <- enrichr_results_down[["KEGG_2021_Mouse"]]
+      kegg_down <- kegg_down[order(kegg_down$Adjusted.P.value), ][1:20, ]  # Top 10 terms
+      save_enrichment_table_csv(kegg_down, paste0("KEGG_Pathways_Downregulated_Condition_", cond, "_", sample_name, ".csv"))
+      plot_enrichment(kegg_down, paste("KEGG Pathways for Downregulated Genes_Condition_", cond),
+                      paste0("Top_20_KEGG_Pathways_for_Downregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = top20_dir)
+      # Plot significant only if there are significant terms
+      plot_enrichment(kegg_down, paste("Significant KEGG Pathways for Downregulated Genes_Condition_", cond, "_", sample_name),
+                      paste0("Significant_KEGG_Pathways_for_Downregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = significant_dir, only_significant = TRUE)
+    }
+    
+    # Molecular functions for downregulated genes
+    if (!is.null(enrichr_results_down[["GO_Molecular_Function_2023"]])) {
+      mol_down <- enrichr_results_down[["GO_Molecular_Function_2023"]]
+      mol_down <- mol_down[order(mol_down$Adjusted.P.value), ][1:20, ]  # Top 10 terms
+      save_enrichment_table_csv(mol_down, paste0("GO_Molecular_Function_Downregulated_Condition_", cond, "_", sample_name, ".csv"))
+      plot_enrichment(mol_down, paste("Molecular Functions for Downregulated Genes - Condition_", cond),
+                      paste0("Top_20_Molecular_Functions_for_Downregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = top20_dir)
+      # Plot significant only if there are significant terms
+      plot_enrichment(mol_down, paste("Significant GO Molecular Functions for Downregulated Genes_Condition_", cond, "_", sample_name),
+                      paste0("Significant_GO_Molecular_Functions_for_Downregulated_Condition_", cond, "_", sample_name, ".pdf"), dir = significant_dir, only_significant = TRUE)
+    }
+  }
+}
+
+# Save the DEG summary table as CSV in the all CSV directory
+write.csv(deg_summary_organoids, file.path(all_csv_dir, paste0("DEG_Summary_All_Conditions_", sample_name, ".csv")), row.names = FALSE)
+
+```
+
+```{r}
+sessionInfo()
+Sys.Date()
+Sys.time()
+```
