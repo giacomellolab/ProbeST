@@ -1,5 +1,7 @@
 # ProbeST: a custom probe design pipeline for sequencing-based spatial transcriptomics 
 
+Sofia Rouot, Ireen van Dolderen, Patrick Rosendahl Andreassen, Solène Frapard,  Sybil A. Herrera-Foessel, Hailey Sounart, Sami Saarenpää, Julia Vorholt, Stefania Giacomello
+
 ProbeST allows to custom design binding probes for any gene of any species to be used in probe-based spatial transcriptomics protocols. To date, the Visium platform provides probes for the human and mouse transcriptomes only. ProbeST offers more flexibility to the probe-based chemistry by enabling the capture of both eukaryotic and prokaryotic transcript information.
 
 ProbeST follows the [10X Genomics recommendations](https://www.10xgenomics.com/support/spatial-gene-expression-ffpe/documentation/workflows/ffpe-v-1/steps/experimental-design-and-planning/custom-probe-design-for-visium-spatial-gene-expression-and-chromium-single-cell-gene-expression-flex) for binding probes with the Visium platform.
