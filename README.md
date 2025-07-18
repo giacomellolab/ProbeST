@@ -7,7 +7,7 @@ ProbeST allows to custom design binding probes for any gene of any species to be
 ProbeST follows the [10X Genomics recommendations](https://www.10xgenomics.com/support/spatial-gene-expression-ffpe/documentation/workflows/ffpe-v-1/steps/experimental-design-and-planning/custom-probe-design-for-visium-spatial-gene-expression-and-chromium-single-cell-gene-expression-flex) for binding probes with the Visium platform.
 
 <p align="center">
-  <img width="800" alt="Chemistry_panel" src="https://github.com/user-attachments/assets/56b4686d-269a-4add-855c-b57d4f4e0861" />
+  <img width="700" alt="Chemistry_panel" src="https://github.com/user-attachments/assets/56b4686d-269a-4add-855c-b57d4f4e0861" />
 </p>
 
 
