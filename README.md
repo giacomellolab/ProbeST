@@ -9,6 +9,7 @@ ProbeST follows the [10X Genomics recommendations](https://www.10xgenomics.com/s
 <p align="center">
   <img width="500" alt="Chemistry_panel" src="https://github.com/user-attachments/assets/de08c02d-3a82-4bfa-8fdd-65dd9210ef80" />
 </p>
+[Fig1_ProbeST_workflow_20250718.pdf](https://github.com/user-attachments/files/21312897/Fig1_ProbeST_workflow_20250718.pdf)
 
 <p align="center">
   <img width="700" alt="ProbeST_pipeline" src="https://github.com/user-attachments/assets/0783caa7-7625-4dfe-89b2-825353fe4b62" />
