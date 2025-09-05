@@ -124,4 +124,7 @@ Therefore, it follows the [current probe requirements](https://www.10xgenomics.c
 - 3 probe pairs per target mRNA is recommended. If the gene is not long enough for 3 pairs, or if there are not 3 pairs specific enough, fewer probe pairs can be designed.
 - There should not be any overlap between probe pair sequences to avoid competition between probes for the same binding site in the target mRNA.
 
+# Cite it 
+If you use this pipeline and the data, please cite the pre-print:  https://doi.org/10.1101/2025.08.29.673037
+
   
