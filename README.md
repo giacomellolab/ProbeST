@@ -74,6 +74,13 @@ or
 snakemake --use-conda --conda-frontend mamba -c1
 ```
 
+You can write
+```
+time snakemake -c 1 --use-conda -s Snakefile_name
+```
+if you want the total compute time.
+
+
 8. If you want to delete outputs before running it again
 
 ```
