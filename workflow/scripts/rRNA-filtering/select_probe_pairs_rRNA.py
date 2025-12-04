@@ -1,0 +1,222 @@
+"""
+Snakemake pipeline. Author: Sofia Rouot.
+
+This is a script for selecting final probe pairs based on: 
+- off-target hybridization (BLAST output)
+- non-overlapping target region
+- max homopolymer repeats RHS = 5 
+- max probe pairs per gene = 3
+
+Input: 
+- python code for generating initial probe pairs LHS+RHS (generate_probe_pairs.py) 
+- trimmed BLAST output generated from previous Snakefile rule using target_specificity_trim.py 
+
+Output: 
+- final probe pairs overview txt file 
+- probe quantifications txt file 
+- probe reference csv file compatible with Space Ranger
+
+"""
+
+import pandas as pd 
+import sys
+import generate_probe_pairs
+import numpy as np
+from Bio.SeqUtils import MeltingTemp as mt
+
+
+
+def main(primer3_output_file, blast_output_file, probes_csv, selected_probes, probe_quantifications, log_process):
+    # Open a log file to record debug information
+    log_file = open(log_process, 'w')
+
+    # Import initial probe pairs 
+    log_file.write("Reading primer3 output file...\n")
+    sequences = generate_probe_pairs.process(primer3_output_file)
+    log_file.write(f"Number of sequences processed: {len(sequences)}\n")
+
+    # Import BLAST output for rRNA filtering
+    log_file.write("Reading BLAST output file...\n")
+    hits = pd.read_csv(blast_output_file, sep = ' ')
+    log_file.write(f"Number of BLAST hits: {len(hits)}\n")
+
+    # For rRNA filtering, remove ALL significant hits
+    nonspec_probes = hits['probe_id'].values.tolist()
+    log_file.write(f"Number of non-specific probes: {len(nonspec_probes)}\n")
+
+    for sequence in sequences:
+    # Create a new list without non-specific probes
+        sequence.PROBES = [
+            probe for probe in sequence.PROBES if probe.LHS_ID not in nonspec_probes
+    ]
+        
+    log_file.write(f"Number of probes after specificity filter for sequence {sequence.ID}: {len(sequence.PROBES)}\n")
+
+    # Delete probes (RHS) which contain a homopolymer repeat of >5 identical nucleotides 
+    K = 5 #initiate max length of homopolymer repeat 
+    for sequence in sequences:
+        for i, probe in enumerate(sequence.PROBES):
+            hyb_RHS = probe.RHS[:25]
+            for idx, ele in enumerate(hyb_RHS):
+                substr = ele * K #create equi string
+                if hyb_RHS[idx : idx + K] > substr:
+                    del sequence.PROBES[i]
+                    break
+
+    # Delete probes which overlap 
+    for sequence in sequences:
+        iterator = 0
+        while iterator < len(sequence.PROBES)-1:
+            if (int(sequence.PROBES[iterator].START) + 4)> int(sequence.PROBES[iterator+1].END): #have a minimum space of 4 nucleotides between two probe pairs (hyb regions). Somewhat arbitrarily chosen. 
+                del sequence.PROBES[iterator+1]
+            else:
+                iterator += 1
+        log_file.write(f"Number of probes after overlap filter for sequence {sequence.ID}: {len(sequence.PROBES)}\n")
+
+    # Keep first 3 probe pairs 
+    for index, sequence in enumerate(sequences): 
+        while len(sequence.PROBES) > 3:
+            del sequence.PROBES[-1]
+        log_file.write(f"Number of probes after limiting to 3 for sequence {sequence.ID}: {len(sequence.PROBES)}\n")
+
+    
+    # Generate the 3 output files
+
+    # Create SpaceRanger compatible CSV reference file.
+    # "Region" Column not included because probes have not been designed specifically for bridging splice junctions 
+    probe_ref = pd.DataFrame(columns = ["gene_id", "probe_seq", "probe_id", "included"])
+    x = 1 
+    for sequence in sequences: 
+        #gene_name = "gene_" + str(x) #generate incrementing gene names, in case you don't have gene name annotations for your genome
+        for probe in sequence.PROBES:
+            hyb_LHS = probe.LHS[-25:] #only take the hybrdising part of the probe, i.e. the last 25 nucleotides    
+            hyb_RHS = probe.RHS[:25] #only take the hybridising part of the probe, i.e. the first 25 nucleotides 
+            full_probe = hyb_LHS + hyb_RHS 
+            sequence_id = sequence.ID.split('_')[0]
+            gene_name = sequence.ID.split('_')[1]
+            probe_id = str(sequence_id + "|" + gene_name + "|" + probe.HASH_ID)
+            df_temp = pd.DataFrame({"gene_id": sequence_id, "probe_seq": full_probe, "probe_id": probe_id, "included": "TRUE"}, index = [0])
+            probe_ref = probe_ref.drop_duplicates()
+            probe_ref = pd.concat([df_temp, probe_ref.loc[:]]).reset_index(drop=True)
+        x = x + 1
+    probe_ref = probe_ref.sort_values(by = ['probe_id'])
+    probe_ref.to_csv(probes_csv, index = False) #export dataframe to csv
+
+    # Save overview of generated probes in txt file 
+    file = open(selected_probes, "w")
+    sys.stdout = file
+    generate_probe_pairs.printer(sequences)
+    file.close()
+
+
+    # Count final amount of probes, for the last file
+    def probe_counter(sequences):
+        n = 0
+        for sequence in sequences: 
+            for probe in sequence.PROBES:
+                n = n + 1 
+        return n
+
+    # Create dictionary counting the occurrences of n probes per gene, for the last file   
+    count_occurrences = {} 
+    for sequence in sequences:
+        sequence.PROBES_count = len(sequence.PROBES)
+        if sequence.PROBES_count in count_occurrences:
+            count_occurrences[sequence.PROBES_count] += 1
+        else:
+            count_occurrences[sequence.PROBES_count] = 1
+
+    # Save probe counts and other quantifications in txt file 
+    file = open(probe_quantifications, "w")
+    sys.stdout = file 
+    print("the final amount of probes is: ", probe_counter(sequences), "\n")   
+    print("the total amount of sequences designed probes for: ", len(sequences)- count_occurrences[0])
+    for i in range(0,5): #adjust range of to the maximum amount of probes per gene which you are interested in
+        if i in count_occurrences:
+            print("the amount of sequences containing ", i, " probes: ", count_occurrences[i])    
+        else:
+            print('the amount of sequences containing ', i, ' probes:  0')
+    
+    print("\nTm consistencies: ", "\n") 
+    tm_per_gene = {}
+    for sequence in sequences:
+        # Gene identification
+        sequence_id = sequence.ID.split('_')[0]
+        gene_name   = sequence.ID.split('_')[1]
+
+        if gene_name not in tm_per_gene:
+            tm_per_gene[gene_name] = []
+
+        for probe in sequence.PROBES:
+
+            # Extract hybridising regions
+            hyb_LHS = probe.LHS[-25:]
+            hyb_RHS = probe.RHS[:25]
+            full_probe = hyb_LHS + hyb_RHS
+
+            # Compute melting temperature
+            tm = mt.Tm_NN(full_probe)
+
+            tm_per_gene[gene_name].append(tm)
+
+    # Calculate ΔTm per gene and print results
+    tm_ranges = {}
+    flagged_genes = []  # genes with ΔTm > 5
+    for gene, tms in tm_per_gene.items():
+        if len(tms) > 1:
+            tm_range = max(tms) - min(tms)
+        else:
+            tm_range = 0.0
+        tm_ranges[gene] = tm_range
+
+    # Summary statistics
+    all_ranges = list(tm_ranges.values())
+    avg_delta = np.mean(all_ranges)
+    max_delta = np.max(all_ranges)
+
+    print(f"Average ΔTm per gene: {avg_delta:.2f} °C")
+    print(f"Max ΔTm observed: {max_delta:.2f} °C\n")
+
+    # Per-gene reporting
+    for gene, delta in tm_ranges.items():
+        tms = tm_per_gene[gene]
+        print(f"Tm consistency for gene: {gene}")
+        print(f"  Number of probes: {len(tms)}")
+        print(f"  Probe Tms: {', '.join(f'{x:.2f}' for x in tms)}")
+        print(f"  ΔTm = {delta:.2f} °C\n")
+
+        # Add warning if ΔTm > 5
+        if delta > 5.0:
+            print(f"  WARNING: ΔTm > 5 °C! Hybridization efficiency may be lower.\n")
+            flagged_genes.append((gene, delta))
+        else:
+            print()
+    
+    if flagged_genes:
+        print("\nGenes with ΔTm > 5 °C between probes")
+        for gene, delta in flagged_genes:
+            print(f"{gene}: ΔTm = {delta:.2f} °C")
+    else:
+        print("\nNo genes with ΔTm > 5 °C were found. All probe sets are consistent.")
+
+    file.close()
+
+
+    # Close the log file
+    log_file.close()
+
+if __name__ == "__main__":
+    if len(sys.argv) != 7:
+        print("Usage: python3 select_probe_pairs.py <primer3_output_file> <blast_output_file> <probes_csv> <selected_probes> <probe_quantifications> <log_process> ")
+        sys.exit(1)
+
+    primer3_output_file = sys.argv[1]
+    blast_output_file = sys.argv[2]
+    probes_csv = sys.argv[3]
+    selected_probes = sys.argv[4]
+    probe_quantifications = sys.argv[5]
+    log_process = sys.argv[6]
+
+    main(primer3_output_file, blast_output_file, probes_csv, selected_probes, probe_quantifications, log_process)
+
+
