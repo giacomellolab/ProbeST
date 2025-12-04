@@ -1,0 +1,6 @@
+blast_db_dir: "/path/to/cross-hyb/dbs" #edit this to the path you have
+blast_dbs:
+  - "env_nt"
+  - "nt_prok"
+  - "nt_viruses"
+num_probe_pairs: 3  # Number of probe pairs to include for each sequence ID

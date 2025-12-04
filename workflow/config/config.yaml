@@ -1,0 +1,3 @@
+pipeline_version: "2BLASTS"        # 1BLAST or 2BLASTS
+cross_hybridisation: true  # true or false
+rrna_filtering: false      # true or false
