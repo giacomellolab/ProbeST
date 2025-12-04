@@ -71,7 +71,7 @@ mamba install blast
 Make sure the input CDS files are renamed so the Snakefile can recognize them:
 -	pipeline version “1BLAST”: rename to CDS_gene_targets.fa the file with the genes of interest, and to CDS_all.fa the file with the full genome.
 -	pipeline version “2BLASTS”: rename to CDS_gene_targets.fa the file with the genes of interest, to CDS_all_pathogen.fa and CDS_all_host.fa the full genomes of the pathogen and host genomes, respectively.
--	if choosing the rRNA filtering step: download the provided SILVA database. 
+-	if choosing the rRNA filtering step: download the provided SILVA database SILVA_138.2_SSURef_NR99_tax_silva.fasta.gz from https://www.arb-silva.de/current-release/Exports. 
 -	If choosing the cross-hybridisation step: 
   o	insert steps
   o	update the path in the cross_hyb.yaml configuration file to the path where your dbs are. 
