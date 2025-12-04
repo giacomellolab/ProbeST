@@ -12,7 +12,18 @@ ProbeST follows the [10X Genomics recommendations](https://www.10xgenomics.com/s
 
 
 ProbeST is built as a SnakeMake workflow, to be run from the terminal command line.
-**After ProbeST, the output probe sequences can be manually BLASTed on NCBI to confirm their specificity to the gene and to the species.**
+It is a modular workflow, as illustrated in the figure. The user can choose in the configuration file (config/config.yaml) different settings depending on the study.
+
+## Case A: Probe design for a eukaryotic species
+Choose pipeline version “1BLAST”. 
+The optional rRNA filtering step is strongly recommended. 
+For poorly annotated eukaryotic genomes, the optional cross-hybridization step is also strongly recommended.
+
+## Case B: Host-pathogen studies 
+Probe design for a prokaryotic species that you wish to detect in its host tissue (including host-pathogen interactions). 
+Choose pipeline version “2BLASTS” and provide the CDS FASTA files of both the host genome and the prokaryotic genome. 
+The rRNA filtering step is strongly recommended. 
+Do not use the cross- hybridization step, as your probes are likely to be all filtered out by the databases used.
 
 # Installation
 
@@ -55,7 +66,18 @@ conda install -c bioconda primer3
 mamba install blast
 ```
 
-6. Make a dry run of the workflow
+6. Choose the configuration of choice and download **all** files in the 'workflow/' folder
+
+Make sure the input CDS files are renamed so the Snakefile can recognize them:
+-	pipeline version “1BLAST”: rename to CDS_gene_targets.fa the file with the genes of interest, and to CDS_all.fa the file with the full genome.
+-	pipeline version “2BLASTS”: rename to CDS_gene_targets.fa the file with the genes of interest, to CDS_all_pathogen.fa and CDS_all_host.fa the full genomes of the pathogen and host genomes, respectively.
+-	if choosing the rRNA filtering step: download the provided SILVA database. 
+-	If choosing the cross-hybridisation step: 
+  o	insert steps
+  o	update the path in the cross_hyb.yaml configuration file to the path where your dbs are. 
+
+   
+8. Make a dry run of the workflow
 
 ```
 snakemake -c 1 -s Snakefile_name --use-conda -np
@@ -64,7 +86,7 @@ snakemake -c 1 -s Snakefile_name --use-conda -np
 The comment "missing output files" is normal. 
 
 
-7. Run ProbeST workflow
+8. Run ProbeST workflow
 
 ```
 snakemake -c 1 --use-conda -s Snakefile_name
@@ -81,7 +103,7 @@ time snakemake -c 1 --use-conda -s Snakefile_name
 if you want the total compute time.
 
 
-8. If you want to delete outputs before running it again
+9. If you want to delete outputs before running it again
 
 ```
 snakemake -s Snakefile_name --delete-all-output
