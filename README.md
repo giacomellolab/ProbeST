@@ -119,11 +119,9 @@ conda install graphviz
 snakemake --dag selected_probes.txt | dot -Tsvg > dag.svg
 ```
 
-## Optional: Cross-hybridization
-In the case of genomes with very poor annotation, this pipeline can be run in addition to the main ProbeST pipeline. It checks for contamination from the environment, due to the likelihood that poorly annotated genomes contain sequences not belonging to the species in question, but rather to environmental, viral or prokaryotic DNA. Cross-hybridisation will remove probes that have been designed from these external genomic sequences, and generate final probes with higher confidence. 
 
 ## Input file formatting
-In order to use this pipeline, the headers in the FASTA file with the genes of interest should be formatted accordingly: 
+In order to use this pipeline, the headers in the CDS_gene_targets.fa FASTA file with the genes of interest should be formatted accordingly: 
 
 >key:value key:value key:value
 
