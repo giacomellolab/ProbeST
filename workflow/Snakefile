@@ -1,0 +1,103 @@
+# ProbeST Snakefile 
+# Adapted for general use: any species and any number of genes. 
+# Input: FASTA file of the CDS sequences of interest. Headers customised for compatibility with the pipeline.
+# Output: Up to 3 probe pairs per gene CDS sequence.  
+
+
+configfile: "config/config.yaml"
+
+# Load version-specific workflow modules
+if config["pipeline_version"] == "1BLAST":
+    include: "rules/1BLAST.smk"
+elif config["pipeline_version"] == "2BLASTS":
+    include: "rules/2BLASTS.smk"
+else:
+    raise ValueError("pipeline_version must be 1BLAST or 2BLASTS.")
+
+# Optional modules
+if config.get("cross_hybridisation", False):
+    include: "rules/cross_hyb.smk"
+#else:
+#    print("Skipping cross-hybridisation rules")
+
+if config.get("rrna_filtering", False):
+    include: "rules/rRNA_filtering.smk"
+    SELECTED_PROBES = "final_outputs/rRNA_filtering/selected_probes_rRNA.txt"
+else:
+    SELECTED_PROBES = "final_outputs/selected_probes.txt"
+#    print("Skipping rRNA rules")
+
+#print("rrna_filtering =", config.get("rrna_filtering", False))
+#print("cross-hybridisation_filtering =", config.get("cross_hybridisation", False))
+
+# Optional rRNA output file list
+rrna_outputs = []
+if config.get("rrna_filtering", False):
+    rrna_outputs.append("final_outputs/rRNA_filtering/selected_probes_rRNA.txt")
+cross_hyb_outputs = []
+if config.get("cross_hybridisation", False):
+    cross_hyb_outputs.append("final_outputs/cross_hyb_filter/selected_probes.txt")
+
+# Final target rule
+rule all:
+    input:
+        "final_outputs/selected_probes.txt",
+	rrna_outputs,
+	cross_hyb_outputs 
+
+# Rule to create primer3 input
+rule create_primer3_input:
+    input:
+        genes_of_interest="CDS_gene_targets.fa"
+    output:
+        "tmp_outputs/primer3_input_snakemake.txt"
+    log:
+        "logs/create_primer3_input.log"
+    conda:
+        "probes_env.yaml"
+    benchmark:
+        "benchmarks/rule_create_primer3_input.txt"
+    shell:
+        """
+        mkdir -p logs
+	mkdir -p tmp_outputs
+	mkdir -p benchmarks 
+        python3 scripts/1BLAST/primer3_input_design.py {input.genes_of_interest} {output} 2> {log}
+	mv primer3_input_snakemake.txt {output} 
+        """
+
+# Rule to run primer3
+rule run_primer3:
+    input:
+        "tmp_outputs/primer3_input_snakemake.txt"
+    output:
+        "tmp_outputs/primer3_output.txt"
+    log:
+        "logs/run_primer3.log"
+    conda:
+         "probes_env.yaml"
+    benchmark:
+        "benchmarks/rule_run_primer3.txt"
+    shell:
+        """
+        mkdir -p logs
+        primer3_core < {input} > {output} 2> {log}
+        """
+
+# Rule to generate probe pairs
+rule generate_probe_pairs:
+    input:
+        "tmp_outputs/primer3_output.txt"
+    output:
+        "tmp_outputs/probes_hybparts_snakemake.fasta"
+    log:
+        "logs/generate_probe_pairs.log"
+    conda:
+         "probes_env.yaml"
+    benchmark:
+        "benchmarks/rule_generate_probe_pairs.txt"
+    shell:
+        """
+        python3 scripts/1BLAST/generate_probe_pairs.py {input} {output} 2> {log}
+        """
+
