@@ -10,6 +10,10 @@ ProbeST follows the [10X Genomics recommendations](https://www.10xgenomics.com/s
   <img width="700" alt="Chemistry_panel" src="https://github.com/user-attachments/assets/56b4686d-269a-4add-855c-b57d4f4e0861" />
 </p>
 
+<p align="center">
+  <img width="700" alt="Chemistry_panel" src="https://github.com/user-attachments/files/24232155/Figure1_review.pd" />
+</p>
+
 
 ProbeST is built as a SnakeMake workflow, to be run from the terminal command line.
 It is a modular workflow, as illustrated in the figure. The user can choose in the configuration file (config/config.yaml) different settings depending on the study.
