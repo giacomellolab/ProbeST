@@ -1,0 +1,752 @@
+---
+title: "QC_Salmo_data"
+author: "Sofia Rouot"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output: html_document
+format:
+  html:
+    code-fold: true
+    toc: true
+    number-sections: true
+    theme: spacelab
+    embed-resources: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Gene-specific bacterial transcriptome profiling
+
+
+```{r load packages, message = FALSE, warning = FALSE}
+library(semla)
+library(openxlsx)
+library(readxl)
+library(patchwork)
+```
+
+# QC: gene-level analyses at the spot level linked to bacterial presence (comment 1 Reviewer 1)
+
+Check object
+```{r}
+se_filtered <- readRDS("se_filtered.rds")
+se_filtered@meta.data
+```
+
+```{r}
+VlnPlot(se_filtered, features = c("nFeature_Spatial", "nCount_Spatial"), group.by = "sample_id", pt.size = 0)
+
+se_filtered$percent.hb <- PercentageFeatureSet(se_filtered, pattern = "^Hba-|^Hbb-|^Hbs|^Hbq1b|^Hbq1a")
+p1 <- VlnPlot(se_filtered, group.by = "sample_id", features = "percent.hb", pt.size = 0.05)
+p1
+
+```
+
+## 1. Expression of each bacterial gene at the level of individual cells/spots.
+
+Results:
+Fraction of bacterial-positive spots: 4.76 %
+0.1319172 average salmo genes per spot
+0.1707539 average bacterial UMIs per spot
+1.874875 average bacterial UMIs per spot, in Salmo+ spots 
+
+```{r}
+salmo_genes <- c("SL1344-2863", "SL1344-3753", "SL1344-2762", "SL1344-0848", "SL1344-2841", "SL1344-4483", "SL1344-2183", "SL1344-2852", "SL1344-1340", "SL1344-1198", "SL1344-1334", "SL1344-1027", "SL1344-3729", "SL1344-1161", "SL1344-1825", "SL1344-4255", "SL1344-1268", "SL1344-4266", "SL1344-1311")
+
+se_filtered@meta.data
+```
+
+### Keep BA sample only
+```{r}
+unique.names <- unique(se_filtered$sample_id)
+unique.names
+
+se_filtered.list.nfeat <- lapply(unique.names, function(i){SubsetSTData(se_filtered, expression = (sample_id == i))})
+se_filtered.list.nfeat
+
+se_filtered_BA <- se_filtered.list.nfeat[[1]]
+unique(se_filtered_BA$sample_id)
+
+```
+
+### Plot each gene spatially
+```{r}
+se_salmo_only= readRDS (file = "STm_genes_only_obj.rds") #Seurat object where only the Salmonella genes were kept. 
+
+se_salmo_only_log <- se_salmo_only
+#Log1p of counts matrix
+se_salmo_only_log@assays[["Spatial"]]@layers[["counts"]] <- log1p(se_salmo_only_log@assays[["Spatial"]]@layers[["counts"]])
+```
+
+```{r}
+cyt <- c("SL1344-2863", "SL1344-3753", "SL1344-2762", "SL1344-0848", "SL1344-2841", "SL1344-4483", "SL1344-2183", "SL1344-2852")
+cyt_names <- c("sipC", "uhpT", "iroN", "grxA", "sitA", "yjjZ", "fruB", "prgJ")
+
+vac <- c("SL1344-1340", "SL1344-1198", "SL1344-1334", "SL1344-1027", "SL1344-3729", "SL1344-1161", "SL1344-1825", "SL1344-4255")
+vac_names <- c("ssaG", "zinT", "sseC", "pipB", "mgtC", "sifA", "znuA", "phoN")
+```
+
+```{r}
+#raw
+plot_list <- list()
+for (gene in cyt) {                     #cytosolic only
+  plt_raw <- MapFeatures(se_salmo_only, #se_salmo_only_log or se_salmo_only
+                 features = gene, 
+                 #max_cutoff = 0.99, 
+                 override_plot_dims = F, 
+                 section_number = 1,
+                 colors = RColorBrewer::brewer.pal(n = 9, name = "Reds"), 
+                 label_by = "sample_id", 
+                 slot = "counts",
+                 pt_size = 0.8, 
+                 add_scalebar = TRUE,
+                 scalebar_gg = scalebar(x = 1000),
+                 scalebar_position = c(0.64, 0.08), 
+                 scalebar_height = 0.07,
+                 scale_alpha = FALSE) &  
+        labs(fill="UMI counts per spot") &
+        theme(legend.position = "right", 
+        legend.text = element_text(angle = 0),
+        legend.margin = margin(t = 50, r = 0, b = 100, l = 0))
+  plot_list[[gene]] <- plt_raw
+
+  ggsave(file = paste0("/path/", gene, "_STm_raw_UMI_counts_BA.pdf"), plot = plt_raw, dpi = 300, width = 10, height =8)
+}
+
+
+combined_plot <- wrap_plots(plot_list)
+combined_plot
+ggsave(file = paste0("/path/all_cytosolic_STm_raw_UMI_counts_BA.pdf"), plot = combined_plot, dpi = 300, width = 30, height =20)
+
+plt_raw
+# , image_use = "raw"
+```
+
+```{r}
+#raw VAC
+plot_list <- list()
+for (gene in vac) {
+  plt_raw <- MapFeatures(se_salmo_only, #se_salmo_only_log or se_salmo_only
+                 features = gene, 
+                 #max_cutoff = 0.99, 
+                 override_plot_dims = F, 
+                 section_number = 1,
+                 colors = RColorBrewer::brewer.pal(n = 9, name = "Reds"), 
+                 label_by = "sample_id", 
+                 slot = "counts",
+                 pt_size = 0.8, 
+                 add_scalebar = TRUE,
+                 scalebar_gg = scalebar(x = 1000),
+                 scalebar_position = c(0.64, 0.08), 
+                 scalebar_height = 0.07,
+                 scale_alpha = FALSE) &  
+        labs(fill="UMI counts per spot") &
+        theme(legend.position = "right", 
+        legend.text = element_text(angle = 0),
+        legend.margin = margin(t = 50, r = 0, b = 100, l = 0))
+  plot_list[[gene]] <- plt_raw
+
+  ggsave(file = paste0("/path/vacuolar/raw/", gene, "_STm_raw_UMI_counts_BA.pdf"), plot = plt_raw, dpi = 300, width = 10, height =8)
+}
+
+
+combined_plot <- wrap_plots(plot_list)
+combined_plot
+ggsave(file = paste0("/path/vacuolar/raw/all_cytosolic_STm_raw_UMI_counts_BA.pdf"), plot = combined_plot, dpi = 300, width = 30, height =20)
+
+```
+
+```{r}
+housekeeping <- c("SL1344-1268", "SL1344-4266", "SL1344-1311")
+
+plot_list <- list()
+for (gene in housekeeping) {
+  plt_raw <- MapFeatures(se_salmo_only, #se_salmo_only_log or se_salmo_only
+                 features = gene, 
+                 #max_cutoff = 0.99, 
+                 override_plot_dims = F, 
+                 section_number = 1,
+                 colors = RColorBrewer::brewer.pal(n = 9, name = "Reds"), 
+                 label_by = "sample_id", 
+                 slot = "counts",
+                 pt_size = 0.8, 
+                 add_scalebar = TRUE,
+                 scalebar_gg = scalebar(x = 1000),
+                 scalebar_position = c(0.64, 0.08), 
+                 scalebar_height = 0.07,
+                 scale_alpha = FALSE) &  
+        labs(fill="UMI counts per spot") &
+        theme(legend.position = "right", 
+        legend.text = element_text(angle = 0),
+        legend.margin = margin(t = 50, r = 0, b = 100, l = 0))
+  plot_list[[gene]] <- plt_raw
+
+  ggsave(file = paste0("/path/housekeeping/raw/", gene, "_STm_raw_UMI_counts_BA.pdf"), plot = plt_raw, dpi = 300, width = 10, height =8)
+}
+
+
+combined_plot <- wrap_plots(plot_list)
+combined_plot
+ggsave(file = paste0("/path/raw/housekeeping_STm_raw_UMI_counts_BA.pdf"), plot = combined_plot, dpi = 300, width = 30, height =10)
+```
+
+
+```{r}
+#log
+plot_list <- list()
+for (gene in cyt) {
+  plt <- MapFeatures(se_salmo_only_log, #se_salmo_only_log or se_salmo_only
+                 features = gene, 
+                 #max_cutoff = 0.99, 
+                 override_plot_dims = F, 
+                 section_number = 1,
+                 colors = RColorBrewer::brewer.pal(n = 9, name = "Reds"), 
+                 label_by = "sample_id", 
+                 slot = "counts",
+                 pt_size = 0.8, 
+                 add_scalebar = TRUE,
+                 scalebar_gg = scalebar(x = 1000),
+                 scalebar_position = c(0.64, 0.08), 
+                 scalebar_height = 0.07,
+                 scale_alpha = FALSE) &  
+        labs(fill="log UMI count per spot") &
+        theme(legend.position = "right", 
+        legend.text = element_text(angle = 0),
+        legend.margin = margin(t = 50, r = 0, b = 100, l = 0))
+  plot_list[[gene]] <- plt
+  ggsave(file = paste0("/path/cytosolic/log/", gene, "_STm_log_UMI_counts_BA.pdf"), plot = plt, dpi = 300, width = 10, height =8)
+  
+}
+
+combined_plot <- wrap_plots(plot_list)
+combined_plot
+ggsave(file = paste0("/path/cytosolic/log/all_cytosolic_STm_log_UMI_counts_BA.pdf"), plot = combined_plot, dpi = 300, width = 30, height =20)
+```
+
+
+```{r}
+#log VAC
+plot_list <- list()
+for (gene in vac) {
+  plt <- MapFeatures(se_salmo_only_log, #se_salmo_only_log or se_salmo_only
+                 features = gene, 
+                 #max_cutoff = 0.99, 
+                 override_plot_dims = F, 
+                 section_number = 1,
+                 colors = RColorBrewer::brewer.pal(n = 9, name = "Reds"), 
+                 label_by = "sample_id", 
+                 slot = "counts",
+                 pt_size = 0.8, 
+                 add_scalebar = TRUE,
+                 scalebar_gg = scalebar(x = 1000),
+                 scalebar_position = c(0.64, 0.08), 
+                 scalebar_height = 0.07,
+                 scale_alpha = FALSE) &  
+        labs(fill="log UMI count per spot") &
+        theme(legend.position = "right", 
+        legend.text = element_text(angle = 0),
+        legend.margin = margin(t = 50, r = 0, b = 100, l = 0))
+  plot_list[[gene]] <- plt
+  ggsave(file = paste0("/vacuolar/log/", gene, "_STm_log_UMI_counts_BA.pdf"), plot = plt, dpi = 300, width = 10, height =8)
+  
+}
+
+combined_plot <- wrap_plots(plot_list)
+combined_plot
+ggsave(file = paste0("/vacuolar/log/all_vacuolar_STm_log_UMI_counts_BA.pdf"), plot = combined_plot, dpi = 300, width = 30, height =20)
+```
+
+```{r}
+#log housekeeping
+plot_list <- list()
+for (gene in housekeeping) {
+  plt <- MapFeatures(se_salmo_only_log, #se_salmo_only_log or se_salmo_only
+                 features = gene, 
+                 #max_cutoff = 0.99, 
+                 override_plot_dims = F, 
+                 section_number = 1,
+                 colors = RColorBrewer::brewer.pal(n = 9, name = "Reds"), 
+                 label_by = "sample_id", 
+                 slot = "counts",
+                 pt_size = 0.8, 
+                 add_scalebar = TRUE,
+                 scalebar_gg = scalebar(x = 1000),
+                 scalebar_position = c(0.64, 0.08), 
+                 scalebar_height = 0.07,
+                 scale_alpha = FALSE) &  
+        labs(fill="log UMI count per spot") &
+        theme(legend.position = "right", 
+        legend.text = element_text(angle = 0),
+        legend.margin = margin(t = 50, r = 0, b = 100, l = 0))
+  plot_list[[gene]] <- plt
+  ggsave(file = paste0("/housekeeping/log/", gene, "_STm_log_UMI_counts_BA.pdf"), plot = plt, dpi = 300, width = 10, height =8)
+  
+}
+
+combined_plot <- wrap_plots(plot_list)
+combined_plot
+ggsave(file = paste0("/housekeeping/log/housekeeping_STm_log_UMI_counts_BA.pdf"), plot = combined_plot, dpi = 300, width = 30, height =20)
+```
+
+Get dataframe of Salmonella genes UMI counts per spot
+```{r}
+present_genes <- salmo_genes[salmo_genes %in% rownames(se_filtered_BA)]
+
+cat("Found genes:", present_genes, "\n")
+
+expr_raw <- FetchData(se_filtered_BA, vars = present_genes, layer = "counts")
+expr_raw # df [10,969 × 19] = spots x Salmo genes
+
+```
+
+```{r}
+# Sum across bacterial genes per spot
+bact_sum <- rowSums(expr_raw > 0)  # number of bacterial genes detected per spot
+bact_sum
+# Define a threshold — at least 1 bacterial gene expressed
+bact_positive_spots <- sum(bact_sum > 0)
+bact_positive_spots # 999
+
+# Total number of spots in the sample
+total_spots <- ncol(se_filtered_BA)
+
+cat("Bacterial-positive spots:", bact_positive_spots, "\n")
+cat("Total spots:", total_spots, "\n")
+```
+
+
+```{r}
+# Fraction (percentage)
+cat("Fraction of bacterial-positive spots:", round(bact_positive_spots / total_spots * 100, 2), "%\n")
+```
+
+Fraction of bacterial-positive spots: 4.76 %
+
+### Average number of S.Tm genes per spot
+To understand how many of the bacterial genes have nonzero expression in each spot, averaged across all spots.
+```{r}
+# Count how many bacterial genes detected per spot
+bact_sum <- rowSums(expr_raw > 0)
+
+# Average across all spots
+avg_bact_genes_per_spot <- mean(bact_sum)
+avg_bact_genes_per_spot
+```
+0.1319172 average salmo genes per spot
+
+### Avg number of salmo UMIs per spot
+Sum all bacterial UMIs per spot, then average across spots.
+```{r}
+# Sum bacterial UMIs per spot
+total_bact_UMI_per_spot <- rowSums(expr_raw)
+
+# Average across all spots
+avg_bact_UMI_per_spot <- mean(total_bact_UMI_per_spot)
+avg_bact_UMI_per_spot
+
+# Average across only among bacterial-positive spots (nonzero total) 
+avg_bact_UMI_per_positive_spot <- mean(total_bact_UMI_per_spot[total_bact_UMI_per_spot > 0])
+avg_bact_UMI_per_positive_spot
+```
+0.1707539 average bacterial UMIs per spot
+1.874875 average bacterial UMIs per spot (in salmo-positive spots)
+
+### Avg number of UMIs per spot for each salmo gene
+“For each bacterial gene, what is the average number of UMIs per spot?”
+```{r}
+# Average UMI per spot for each bacterial gene (across all spots)
+avg_UMI_per_gene <- colMeans(expr_raw)
+avg_UMI_per_gene
+
+#only spots where the gene is expressed
+avg_UMI_per_gene_detected <- apply(expr_raw, 2, function(x) mean(x[x > 0]))
+avg_UMI_per_gene_detected
+```
+
+```{r}
+salmo_summary <- data.frame(
+  Gene = colnames(expr_raw),
+  Avg_UMI_all_spots = colMeans(expr_raw),
+  Avg_UMI_detected_spots = apply(expr_raw, 2, function(x) mean(x[x > 0])),
+  Detection_rate = colMeans(expr_raw > 0)
+)
+salmo_summary
+```
+
+```{r}
+write.xlsx(salmo_summary, file = "/path/UMIs_per_spot_for_each_STm_gene_BA.xlsx", colNames=TRUE, rowNames=TRUE)
+```
+
+
+## 2. Whether multiple bacterial genes are co-expressed within a single spot, or whether only one (or a subset) is typically detected.
+
+```{r}
+expr_raw_gene_names <- expr_raw
+#with gene names
+gene_names <- read_excel("table_STm_geneIDs_and_gene_names.xlsx")
+
+new_colnames <- gene_names$STm_gene_name
+colnames(expr_raw_gene_names) <- new_colnames
+```
+
+Count how many genes are detected per spot (singletons)
+```{r}
+# Binary detection: 1 = detected, 0 = not detected
+binary_expr <- expr_raw_gene_names > 0
+binary_expr
+# Number of bacterial genes detected per spot
+num_genes_per_spot <- rowSums(binary_expr)
+
+# Singleton spots (exactly one gene detected)
+singleton_spots <- num_genes_per_spot == 1
+table(singleton_spots)
+
+#which gene
+singleton_gene_per_spot <- apply(binary_expr[singleton_spots, ], 1, function(x) names(x)[which(x)])
+head(singleton_gene_per_spot)
+```
+
+For each gene, how many singletons
+```{r}
+# Subset singleton spots
+singleton_matrix <- binary_expr[singleton_spots, ]
+
+# Identify the singleton gene in each spot
+singleton_genes <- apply(singleton_matrix, 1, function(x) names(x)[which(x)])
+
+# Count number of singleton spots per gene
+singleton_counts <- table(singleton_genes)
+singleton_counts
+```
+
+```{r}
+library(ggplot2)
+
+singleton_df <- as.data.frame(singleton_counts)
+colnames(singleton_df) <- c("Gene", "SingletonSpots")
+
+singleton_plt <- ggplot(singleton_df, aes(x = Gene, y = SingletonSpots)) +
+  geom_bar(stat = "identity", alpha = 1, fill = "steelblue") +
+  theme_minimal() +
+  geom_text(aes(label=SingletonSpots), vjust=-0.5, color="black", size=3) +
+  labs(x="S.Tm gene", y="Number of singleton spots", title = " Singleton spots per bacterial gene") +
+  theme(axis.text.y = element_text(size = 6, hjust = 1, color = "black"),
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        axis.ticks = element_line(color = "black"),
+        axis.line = element_line(color = "black"),
+        plot.title = element_text(hjust = 0.5),
+        panel.background = element_blank(),  # Remove panel background
+        axis.ticks.length = unit(0.25, "cm"),  
+        axis.text.x = element_text(size = 10, color = "black", angle = 0, hjust = 0.5))
+
+singleton_plt
+
+ggsave(file = paste0("singleton_spots_per_bacterial_gene.pdf"), plot = singleton_plt, dpi = 300, width = 10, height = 12)
+```
+
+Colocalisation (co-expression) between gene pairs
+How often each pair of bacterial genes is detected in the same spot
+```{r}
+library(reshape2)
+
+# Convert binary detection to numeric (0/1)
+binary_expr_num <- binary_expr * 1
+binary_expr_num
+# Co-detection matrix: number of spots where each pair is co-expressed
+coexpr_matrix <- t(binary_expr_num) %*% binary_expr_num
+coexpr_matrix
+
+#Fraction of spots co-expressing each pair
+coexpr_fraction <- coexpr_matrix / nrow(expr_raw)
+coexpr_fraction
+```
+
+Fisher’s exact test to see which gene pairs significantly colocalise
+```{r}
+STm_gene_name = c("sipC", "uhpT", "iroN", "grxA", "sitA", "yjjZ", "fruB", "prgJ", "ssaG", "zinT", "sseC", "pipB", "mgtC", "sifA", "znuA", "phoN", "infC", "groES", "lpp")
+
+gene_pairs <- combn(STm_gene_name, 2, simplify = FALSE)
+pvals <- sapply(gene_pairs, function(pair) {
+  g1 <- pair[1]
+  g2 <- pair[2]
+  
+  # Contingency table
+  tab <- matrix(c(
+    sum(binary_expr[,g1] & binary_expr[,g2]),   # both
+    sum(binary_expr[,g1] & !binary_expr[,g2]),  # g1 only
+    sum(!binary_expr[,g1] & binary_expr[,g2]),  # g2 only
+    sum(!binary_expr[,g1] & !binary_expr[,g2])  # neither
+  ), nrow=2)
+  
+  fisher.test(tab, alternative = "greater")$p.value
+})
+
+# Combine results
+coexpr_results <- data.frame(
+  gene1 = sapply(gene_pairs, `[`, 1),
+  gene2 = sapply(gene_pairs, `[`, 2),
+  pvalue = pvals,
+  co_detected_spots = sapply(gene_pairs, function(pair) sum(binary_expr[,pair[1]] & binary_expr[,pair[2]]))
+)
+
+coexpr_results <- coexpr_results[order(coexpr_results$pvalue), ]
+head(coexpr_results)
+
+```
+Visualize p values from fisher's test
+```{r}
+coexpr_results$negLogP <- -log10(coexpr_results$pvalue)
+
+# Combine gene pairs into a single label
+coexpr_results$Pair <- paste(coexpr_results$gene1, coexpr_results$gene2, sep = "-")
+
+coexpr_plot <- ggplot(coexpr_results, aes(x = pvalue, y = Pair)) +
+  geom_bar(stat = "identity", fill = "coral") +
+  geom_vline(xintercept = 0.05, linetype = "dashed", color = "black", linewidth = 0.8) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ylab("Gene pair") +
+  xlab("p-value") + #-log10(p-value)
+  ggtitle("Significant co-localizing bacterial gene pairs")
+
+coexpr_plot
+```
+
+```{r}
+ggsave(file = paste0("coexpressed_gene_pairs_by_significance.pdf"), plot = coexpr_plot, dpi = 300, width = 10, height = 20)
+```
+
+
+
+## 3.Whether lifestype-specific markers co-occur within the same spots.
+Colocalisation with 2 categories
+Correlation metric: Fisher’s exact test
+
+```{r}
+cyt <- c("SL1344-2863", "SL1344-3753", "SL1344-2762", "SL1344-0848", "SL1344-2841", "SL1344-4483", "SL1344-2183", "SL1344-2852")
+
+cyt_names <- c("sipC", "uhpT", "iroN", "grxA", "sitA", "yjjZ", "fruB", "prgJ")
+
+vac <- c("SL1344-1340", "SL1344-1198", "SL1344-1334", "SL1344-1027", "SL1344-3729", "SL1344-1161", "SL1344-1825", "SL1344-4255")
+vac_names <- c("ssaG", "zinT", "sseC", "pipB", "mgtC", "sifA", "znuA", "phoN")
+```
+
+```{r}
+binary_expr_names <- expr_raw_gene_names > 0  # TRUE/FALSE for each spot
+
+cyt_expr <- binary_expr_names[, cyt_names]
+vac_expr <- binary_expr_names[, vac_names]
+
+# co-detection matrix
+coexpr_matrix_cyt <- t(cyt_expr) %*% cyt_expr
+coexpr_matrix_vac <- t(vac_expr) %*% vac_expr
+```
+
+Gene pair colocalisation within cytsolic 
+```{r}
+gene_pairs <- combn(cyt_names, 2, simplify = FALSE)
+
+fisher_results <- lapply(gene_pairs, function(pair) {
+  g1 <- pair[1]
+  g2 <- pair[2]
+  
+  # contingency table
+  tab <- matrix(c(
+    sum(cyt_expr[,g1] & cyt_expr[,g2]),   # both
+    sum(cyt_expr[,g1] & !cyt_expr[,g2]),  # g1 only
+    sum(!cyt_expr[,g1] & cyt_expr[,g2]),  # g2 only
+    sum(!cyt_expr[,g1] & !cyt_expr[,g2])  # neither
+  ), nrow = 2)
+  
+  # Fisher test
+  p <- fisher.test(tab, alternative = "greater")$p.value
+  
+  data.frame(gene1 = g1, gene2 = g2, co_detected_spots = tab[1], pvalue = p)
+})
+
+fisher_results <- bind_rows(fisher_results)
+
+```
+
+```{r}
+fisher_results$Pair <- paste(fisher_results$gene1, fisher_results$gene2, sep = "-")
+
+cyto_gene_pair <- ggplot(fisher_results, aes(x = pvalue, y = reorder(Pair, pvalue))) +
+  geom_bar(stat = "identity", fill = "coral") +
+  geom_vline(xintercept = 0.05, linetype = "dashed", color = "blue", size = 1) +
+  theme_bw() +
+  xlab("P-value") +
+  ylab("Gene pair") +
+  ggtitle("Co-localization of cytosolic genes")
+
+```
+
+```{r}
+ggsave(file = paste0("coexpressed_cytosolic_gene_pairs.pdf"), plot = cyto_gene_pair, dpi = 300, width = 10, height = 20)
+```
+
+Gene pair colocalisation within vacuolar 
+```{r}
+gene_pairs_vac <- combn(vac_names, 2, simplify = FALSE)
+
+fisher_results_vac <- lapply(gene_pairs_vac, function(pair) {
+  g1 <- pair[1]
+  g2 <- pair[2]
+  
+  # contingency table
+  tab <- matrix(c(
+    sum(vac_expr[,g1] & vac_expr[,g2]),   # both
+    sum(vac_expr[,g1] & !vac_expr[,g2]),  # g1 only
+    sum(!vac_expr[,g1] & vac_expr[,g2]),  # g2 only
+    sum(!vac_expr[,g1] & !vac_expr[,g2])  # neither
+  ), nrow = 2)
+  
+  # Fisher test
+  p <- fisher.test(tab, alternative = "greater")$p.value
+  
+  data.frame(gene1 = g1, gene2 = g2, co_detected_spots = tab[1], pvalue = p)
+})
+
+fisher_results_vac <- bind_rows(fisher_results_vac)
+
+```
+
+```{r}
+fisher_results_vac$Pair <- paste(fisher_results_vac$gene1, fisher_results_vac$gene2, sep = "-")
+
+vac_gene_pair <- ggplot(fisher_results_vac, aes(x = pvalue, y = reorder(Pair, pvalue))) +
+  geom_bar(stat = "identity", fill = "coral") +
+  geom_vline(xintercept = 0.05, linetype = "dashed", color = "blue", size = 1) +
+  theme_bw() +
+  xlab("P-value") +
+  ylab("Gene pair") +
+  ggtitle("Co-localization of vacuolar genes")
+
+```
+
+```{r}
+ggsave(file = paste0("coexpressed_vacuolar_gene_pairs.pdf"), plot = vac_gene_pair, dpi = 300, width = 10, height = 20)
+```
+
+### Permutation test for cytosolic or vacuolar genes
+```{r}
+# Observed: number of spots with all genes detected
+obs_count <- sum(vac_genes_per_spot == 1)
+
+# Permutation: randomly shuffle gene detection across spots many times
+set.seed(123)
+n_perm <- 1000
+perm_counts <- replicate(n_perm, {
+  shuffled <- apply(vac_expr, 2, sample)
+  sum(rowSums(shuffled) == ncol(shuffled))
+})
+
+# Empirical p-value
+p_value <- mean(perm_counts >= obs_count)
+p_value
+
+```
+Permutation shows that, in general, the cytosolic genes do not co-occur in same spots. Same for vacuolar genes. (p_value = 1)
+
+
+## 4. The distribution of the bacterial UMIs per spot (from Figure 2B it appears the maximum is ~10).
+
+Show the overall distribution of Salmo+ spots in the 3 conditions (spatially) and show a histogram. 
+
+```{r}
+# Total bacterial UMIs per spot
+total_bact_UMIs <- rowSums(expr_raw_gene_names)
+summary(total_bact_UMIs)
+
+df <- data.frame(
+  spot = names(total_bact_UMIs),
+  total_bact_UMI  = as.numeric(total_bact_UMIs)
+)
+
+MapFeaturesSummary(se_filtered_BA, features = "salmo_counts", section_number = 2, subplot_type = "histogram") #up to 27 UMIs
+```
+
+Do not visualise with violin plot as a lot of 0 values
+
+### Histogram of number of spots according to UMI counts
+Only spots with UMIs > 0 are shown
+```{r}
+#Histogram or box plot of the distribution
+umis_per_spot <- ggplot(df %>% filter(total_bact_UMI > 0), aes(x = total_bact_UMI)) +
+  geom_histogram(binwidth = 1,  fill = "skyblue",
+    color = "black") +
+  scale_x_continuous(breaks = seq(min(df$total_bact_UMI), max(df$total_bact_UMI), by = 1)) +
+  labs(title = "Distribution of the S.Tm UMIs per spot",
+       x = "S.Tm raw UMI count",
+       y = "Number of spots") +
+  theme(axis.text.y = element_text(hjust = 1, color = "black"),
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        axis.ticks = element_line(color = "black"),
+        axis.line = element_line(color = "black"),
+        plot.title = element_text(hjust = 0.5),
+        panel.background = element_blank(),  # Remove panel background
+        axis.ticks.length = unit(0.25, "cm"),  # Adjust the length of the tick marks if needed
+        axis.text.x = element_text(color = "black")) 
+
+umis_per_spot
+```
+
+```{r}
+ggsave(file = paste0("STm_umis_per_spot_v2.pdf"), plot = umis_per_spot, dpi = 300, width = 10, height = 6)
+```
+
+
+
+```{r}
+df$is_zero <- df$total_bact_UMI == 0
+
+spots_with_without_stm <- ggplot(df, aes(x = is_zero)) +
+  geom_bar(width = 0.5, fill = "skyblue",
+    color = "black") +
+  scale_x_discrete(labels = c("S.Tm UMIs present", "S.Tm UMIs absent")) +
+  labs(x = "S. Tm UMI value", y = "Number of spots") +
+  theme(axis.text.y = element_text(hjust = 1, color = "black"),
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        axis.ticks = element_line(color = "black"),
+        axis.line = element_line(color = "black"),
+        plot.title = element_text(hjust = 0.5),
+        panel.background = element_blank(),  # Remove panel background
+        axis.ticks.length = unit(0.25, "cm"),  # Adjust the length of the tick marks if needed
+        axis.text.x = element_text(color = "black"))
+
+spots_with_without_stm
+```
+
+```{r}
+ggsave(file = paste0("spot_count_with_vs_without_STm.pdf"), plot = spots_with_without_stm, dpi = 300, width = 10, height = 6)
+```
+
+
+```{r}
+df_no_zero <- df %>% filter(total_bact_UMI > 0)
+df_hist <- df_no_zero %>%
+  count(total_bact_UMI)
+
+ggplot(df_hist, aes(x = n, y = factor(total_bact_UMI))) +
+  geom_col(fill = "skyblue", color = "black", width = 0.8) +
+  labs(
+    x = "Number of spots (cells)",
+    y = "UMI count"
+  ) +
+  theme_minimal()
+```
+
+# Session info
+
+<details>
+
+<summary>
+
+</summary>
+
+```{r}
+sessionInfo()
+Sys.Date()
+Sys.time()
+```
