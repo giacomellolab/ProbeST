@@ -152,6 +152,6 @@ Therefore, it follows the [current probe requirements](https://www.10xgenomics.c
 - There should not be any overlap between probe pair sequences to avoid competition between probes for the same binding site in the target mRNA.
 
 # Cite it 
-If you use this pipeline and the data, please cite the pre-print:  https://doi.org/10.1101/2025.08.29.673037
+If you use this pipeline and the data, please cite us. DOI: https://doi.org/10.1186/s12864-026-13077-z
 
   
