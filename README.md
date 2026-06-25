@@ -1,4 +1,4 @@
-# ProbeST: a custom probe design pipeline for spatial transcriptomics 
+# ProbeST: a custom probe design pipeline for dual host-pathogen Spatial Transcriptomics 
 
 Sofia Rouot, Ireen van Dolderen, Patrick Rosendahl Andreassen, Solène Frapard,  Sybil A. Herrera-Foessel, Hailey Sounart, Sami Saarenpää, Julia Vorholt, Stefania Giacomello
 
